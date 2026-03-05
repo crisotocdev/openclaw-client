@@ -1,7 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+    Alert,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 import { useAuth } from "../auth/AuthContext";
 
 type CmdResponse = {
@@ -12,10 +20,30 @@ type CmdResponse = {
     response: string;
 };
 
+const API_KEY = "moltbot_api";
+const HISTORY_KEY = "moltbot_cmd_history";
+const HISTORY_MAX = 10;
+
 function joinUrl(base: string, path: string) {
     const b = base.endsWith("/") ? base.slice(0, -1) : base;
     const p = path.startsWith("/") ? path : `/${path}`;
     return `${b}${p}`;
+}
+
+function normalizeCmd(s: string) {
+    return s.trim().replace(/\s+/g, " ");
+}
+
+function dedupeKeepOrder(items: string[]) {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const it of items) {
+        const k = it.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(it);
+    }
+    return out;
 }
 
 async function postJson<T>(url: string, body: any): Promise<T> {
@@ -52,18 +80,68 @@ export default function Home() {
     const [cmd, setCmd] = useState("PING");
     const [out, setOut] = useState("");
     const [loading, setLoading] = useState(true);
+    const [cmdLoading, setCmdLoading] = useState(false);
+
+    const [history, setHistory] = useState<string[]>([]);
 
     const base = useMemo(() => apiBase.trim(), [apiBase]);
     const tok = useMemo(() => (token ?? "").trim(), [token]);
 
+    // Copiar feedback (web)
+    const [copied, setCopied] = useState(false);
+    const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    function showCopiedToast() {
+        setCopied(true);
+        if (copiedTimer.current) clearTimeout(copiedTimer.current);
+        copiedTimer.current = setTimeout(() => setCopied(false), 1200);
+    }
+
+    async function loadHistory() {
+        try {
+            const raw = await AsyncStorage.getItem(HISTORY_KEY);
+            if (!raw) return;
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+                const cleaned = arr
+                    .map((x) => (typeof x === "string" ? normalizeCmd(x) : ""))
+                    .filter(Boolean);
+                setHistory(dedupeKeepOrder(cleaned).slice(0, HISTORY_MAX));
+            }
+        } catch { }
+    }
+
+    async function saveHistory(next: string[]) {
+        try {
+            await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+        } catch { }
+    }
+
+    async function pushHistory(entry: string) {
+        const e = normalizeCmd(entry);
+        if (!e) return;
+
+        setHistory((prev) => {
+            const next = dedupeKeepOrder([e, ...prev]).slice(0, HISTORY_MAX);
+            void saveHistory(next);
+            return next;
+        });
+    }
+
+    async function clearHistory() {
+        setHistory([]);
+        try {
+            await AsyncStorage.removeItem(HISTORY_KEY);
+        } catch { }
+    }
+
     useEffect(() => {
         (async () => {
-            // Esperar a que el AuthContext cargue el token desde SecureStore
             if (authLoading) return;
 
-            const a = (await AsyncStorage.getItem("moltbot_api"))?.trim();
+            const a = (await AsyncStorage.getItem(API_KEY))?.trim();
 
-            // Si falta apiBase o token -> login
+            // si no hay api base o no hay token -> login
             if (!a || !tok) {
                 setLoading(false);
                 router.replace("/login");
@@ -71,24 +149,19 @@ export default function Home() {
             }
 
             setApiBase(a);
-
-            // Verificar token contra backend (igual que antes, pero sin leerlo de AsyncStorage)
-            try {
-                const ok = await postJson(joinUrl(a, "/auth/verify"), { token: tok });
-                // Si tu /auth/verify devuelve JSON cualquiera en ok, basta con que no tire error.
-                void ok;
-                setLoading(false);
-            } catch (e: any) {
-                setLoading(false);
-                await signOut(); // limpia token (SecureStore)
-                router.replace("/login");
-            }
+            await loadHistory();
+            setLoading(false);
         })();
+
+        return () => {
+            if (copiedTimer.current) clearTimeout(copiedTimer.current);
+        };
     }, [authLoading, tok]);
 
     function renderCmdResult(data: CmdResponse) {
-        const human = `${data.ok ? "✅" : "❌"} ${data.role} | ${data.command}${data.argument ? " " + data.argument : ""
-            }\n${data.response}`;
+        const human =
+            `${data.ok ? "✅" : "❌"} ${data.role} | ${data.command}` +
+            `${data.argument ? " " + data.argument : ""}\n${data.response}`;
 
         const debug = `\n\n---\nJSON:\n${JSON.stringify(data, null, 2)}`;
         return human + debug;
@@ -99,60 +172,83 @@ export default function Home() {
             router.replace("/login");
             return;
         }
+        if (cmdLoading) return;
 
-        const url = joinUrl(base, "/cmd");
+        const msgClean = normalizeCmd(message);
+        if (!msgClean) return;
 
-        // ✅ tu backend espera { token, message }
+        setCmdLoading(true);
         try {
-            const data = await postJson<CmdResponse>(url, { token: tok, message });
+            const url = joinUrl(base, "/cmd");
+            const data = await postJson<CmdResponse>(url, { token: tok, message: msgClean });
             setOut(renderCmdResult(data));
+            await pushHistory(msgClean);
         } catch (e: any) {
-            const msg = e?.message ?? "Error";
+            const msg = String(e?.message ?? "Error");
 
-            // Si el backend responde algo tipo "Token inválido", forzamos logout
-            if (typeof msg === "string" && msg.toLowerCase().includes("token")) {
+            // token inválido -> logout
+            if (msg.toLowerCase().includes("token")) {
                 await signOut();
                 router.replace("/login");
                 return;
             }
 
-            throw e;
+            Alert.alert("Error", msg);
+        } finally {
+            setCmdLoading(false);
         }
     }
 
     async function whoami() {
-        try {
-            await runCommand("WHOAMI");
-        } catch (e: any) {
-            Alert.alert("Error", e?.message ?? "Error");
-        }
+        await runCommand("WHOAMI");
     }
 
     async function sendCmd() {
-        try {
-            const message = cmd.trim();
-            if (!message) {
-                Alert.alert("Falta comando", "Escribe un comando (ej: PING).");
-                return;
-            }
-            await runCommand(message);
-        } catch (e: any) {
-            Alert.alert("Error", e?.message ?? "Error");
+        const message = cmd.trim();
+        if (!message) {
+            Alert.alert("Falta comando", "Escribe un comando (ej: PING).");
+            return;
         }
+        await runCommand(message);
     }
 
     async function logout() {
-        // apiBase lo seguimos guardando en AsyncStorage
-        await AsyncStorage.removeItem("moltbot_api");
-        await signOut(); // token fuera
+        if (cmdLoading) return;
+
+        try {
+            await AsyncStorage.removeItem(API_KEY);
+            await AsyncStorage.removeItem(HISTORY_KEY);
+        } catch { }
+
+        await signOut();
         setOut("");
         setCmd("PING");
         router.replace("/login");
     }
 
+    async function onCopy() {
+        if (!out || cmdLoading) return;
+
+        // Web only: navigator.clipboard
+        try {
+            // @ts-ignore
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                // @ts-ignore
+                await navigator.clipboard.writeText(out);
+                showCopiedToast();
+                return;
+            }
+        } catch { }
+
+        Alert.alert("No disponible", "Copiar funciona solo en web por ahora.");
+    }
+
+    const canUse = !!tok && !!base && !cmdLoading;
+    const canSend = !!cmd.trim() && canUse;
+
     if (loading || authLoading) {
         return (
-            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <View style={styles.center}>
                 <Text>Cargando...</Text>
             </View>
         );
@@ -164,10 +260,15 @@ export default function Home() {
             <Text style={styles.small}>API: {base || "(no configurada)"}</Text>
 
             <View style={styles.row}>
-                <Pressable style={[styles.btn, (!tok || !base) && { opacity: 0.5 }]} onPress={whoami} disabled={!tok || !base}>
-                    <Text style={styles.btnText}>Whoami</Text>
+                <Pressable
+                    style={[styles.btn, (!canUse || cmdLoading) && { opacity: 0.5 }]}
+                    onPress={whoami}
+                    disabled={!canUse || cmdLoading}
+                >
+                    <Text style={styles.btnText}>{cmdLoading ? "..." : "Whoami"}</Text>
                 </Pressable>
-                <Pressable style={[styles.btn, styles.red]} onPress={logout}>
+
+                <Pressable style={[styles.btn, styles.red]} onPress={logout} disabled={cmdLoading}>
                     <Text style={styles.btnText}>Salir</Text>
                 </Pressable>
             </View>
@@ -180,27 +281,50 @@ export default function Home() {
                 autoCapitalize="none"
                 onSubmitEditing={sendCmd}
                 returnKeyType="send"
+                editable={!cmdLoading}
+                placeholder="PING"
             />
 
-            <Pressable style={[styles.btn, !cmd.trim() && { opacity: 0.5 }]} onPress={sendCmd} disabled={!cmd.trim()}>
-                <Text style={styles.btnText}>Enviar CMD</Text>
+            {history.length > 0 && (
+                <View style={styles.historyBox}>
+                    <View style={styles.historyHeader}>
+                        <Text style={styles.historyTitle}>Historial</Text>
+                        <Pressable onPress={clearHistory} disabled={cmdLoading}>
+                            <Text style={styles.historyClear}>Limpiar</Text>
+                        </Pressable>
+                    </View>
+
+                    <View style={styles.historyChips}>
+                        {history.map((h) => (
+                            <Pressable
+                                key={h}
+                                disabled={cmdLoading}
+                                onPress={() => setCmd(h)}
+                                style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
+                            >
+                                <Text style={styles.chipText}>{h}</Text>
+                            </Pressable>
+                        ))}
+                    </View>
+                </View>
+            )}
+
+            <Pressable
+                style={[styles.btnWide, (!canSend || cmdLoading) && { opacity: 0.5 }]}
+                onPress={sendCmd}
+                disabled={!canSend || cmdLoading}
+            >
+                <Text style={styles.btnText}>{cmdLoading ? "Ejecutando..." : "Enviar CMD"}</Text>
             </Pressable>
 
             <Text style={styles.label}>Salida</Text>
+
             <Pressable
-                style={styles.btn}
-                onPress={() => {
-                    try {
-                        // Web only
-                        // @ts-ignore
-                        navigator.clipboard.writeText(out);
-                        Alert.alert("Listo", "Salida copiada.");
-                    } catch {
-                        Alert.alert("No disponible", "Copiar funciona solo en web por ahora.");
-                    }
-                }}
+                style={[styles.btnWide, (!out || cmdLoading) && { opacity: 0.5 }, copied && styles.green]}
+                onPress={onCopy}
+                disabled={!out || cmdLoading}
             >
-                <Text style={styles.btnText}>Copiar salida</Text>
+                <Text style={styles.btnText}>{copied ? "✅ Copiado" : "Copiar salida"}</Text>
             </Pressable>
 
             <ScrollView style={styles.outBox}>
@@ -213,15 +337,45 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+
     container: { flex: 1, padding: 20, gap: 10, paddingTop: 40 },
     title: { fontSize: 24, fontWeight: "700" },
     small: { fontSize: 12, opacity: 0.7 },
+
     row: { flexDirection: "row", gap: 10 },
+
     label: { fontSize: 14, opacity: 0.8, marginTop: 8 },
     input: { borderWidth: 1, borderColor: "#999", borderRadius: 10, padding: 12 },
-    btn: { backgroundColor: "black", padding: 14, borderRadius: 12, flex: 1 },
+
+    btn: { backgroundColor: "black", padding: 14, borderRadius: 12, flex: 1, alignItems: "center" },
+    btnWide: { backgroundColor: "black", padding: 14, borderRadius: 12, alignItems: "center" },
     red: { backgroundColor: "#b00020" },
+    green: { backgroundColor: "#0b6b2d" },
+
     btnText: { color: "white", textAlign: "center", fontWeight: "700" },
+
+    historyBox: {
+        borderWidth: 1,
+        borderColor: "#999",
+        borderRadius: 12,
+        padding: 10,
+        gap: 8,
+    },
+    historyHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    historyTitle: { fontSize: 12, fontWeight: "700", opacity: 0.8 },
+    historyClear: { fontSize: 12, fontWeight: "700", textDecorationLine: "underline" },
+
+    historyChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    chip: {
+        borderWidth: 1,
+        borderColor: "#999",
+        borderRadius: 999,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+    },
+    chipText: { fontSize: 12, fontWeight: "600" },
+
     outBox: { borderWidth: 1, borderColor: "#999", borderRadius: 10, padding: 12, height: 220 },
     outText: { fontFamily: "monospace" },
 });

@@ -1,10 +1,9 @@
-// src/auth/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { clearToken, getToken, setToken } from "./authStorage";
 
 type AuthContextValue = {
     token: string | null;
-    loading: boolean; // cargando sesión al abrir app
+    loading: boolean;
     signIn: (token: string) => Promise<void>;
     signOut: () => Promise<void>;
 };
@@ -16,7 +15,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // auto-login al iniciar
         (async () => {
             try {
                 const t = await getToken();
@@ -31,23 +29,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         () => ({
             token: tokenState,
             loading,
+
             signIn: async (newToken: string) => {
-                setTokenState(newToken);
-                await setToken(newToken);
+                const clean = (newToken ?? "").trim();
+                setTokenState(clean);
+                await setToken(clean);
             },
+
             signOut: async () => {
-                setTokenState(null);
-                await clearToken();
+                try {
+                    await clearToken();
+                } finally {
+                    setTokenState(null);
+                }
             },
         }),
         [tokenState, loading]
     );
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    return <AuthContext.Provider value={value}> {children} </AuthContext.Provider>;
 }
 
 export function useAuth() {
     const ctx = useContext(AuthContext);
-    if (!ctx) throw new Error("useAuth debe usarse dentro de AuthProvider");
+    if (!ctx) {
+        throw new Error("useAuth debe usarse dentro de AuthProvider");
+    }
     return ctx;
 }
