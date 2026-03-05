@@ -25,14 +25,8 @@ const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
 const CHECK_INTERVAL_MS = 10000;
 
-// ✅ NUEVO: comandos sugeridos (ajusta según tu backend)
-const COMMAND_SUGGESTIONS = [
-    "PING",
-    "WHOAMI",
-    "HELP",
-    "STATUS",
-    "VERSION",
-];
+// ✅ comandos sugeridos
+const COMMAND_SUGGESTIONS = ["PING", "WHOAMI", "HELP", "STATUS", "VERSION"];
 
 type VerifyResponse = {
     ok?: boolean;
@@ -108,16 +102,18 @@ export default function Home() {
     const base = useMemo(() => apiBase.trim(), [apiBase]);
     const tok = useMemo(() => (token ?? "").trim(), [token]);
 
-    // ✅ NUEVO: sugerencias según lo escrito
+    // ✅ sugerencias según lo escrito
     const suggestions = useMemo(() => {
         const q = normalizeCmd(cmd).toUpperCase();
         if (!q) return [];
-        // solo sugiere si el usuario está escribiendo la "primera palabra"
         if (q.includes(" ")) return [];
-        return COMMAND_SUGGESTIONS.filter((c) => c.startsWith(q) && c !== q).slice(0, 6);
+        return COMMAND_SUGGESTIONS.filter((c) => c.startsWith(q) && c !== q).slice(
+            0,
+            6
+        );
     }, [cmd]);
 
-    // ✅ refs para que el polling use valores actualizados sin re-montar interval
+    // ✅ refs para polling
     const baseRef = useRef<string>("");
     const tokRef = useRef<string>("");
 
@@ -203,7 +199,7 @@ export default function Home() {
 
             setOnline(ok ? true : false);
 
-            // Si responde pero token inválido -> logout (auth, no red)
+            // token inválido -> logout
             if (!ok) {
                 await signOut();
                 router.replace("/login");
@@ -231,7 +227,6 @@ export default function Home() {
 
             const a = (await AsyncStorage.getItem(API_KEY))?.trim();
 
-            // si no hay api base o no hay token -> login
             if (!a || !tok) {
                 setLoading(false);
                 router.replace("/login");
@@ -241,12 +236,9 @@ export default function Home() {
             setApiBase(a);
             await loadHistory();
 
-            // primer check
             await checkBackend("init");
-
             setLoading(false);
 
-            // ✅ polling
             timer = setInterval(() => {
                 void checkBackend("poll");
             }, CHECK_INTERVAL_MS);
@@ -256,7 +248,6 @@ export default function Home() {
             if (timer) clearInterval(timer);
             if (copiedTimer.current) clearTimeout(copiedTimer.current);
         };
-        // OJO: no metemos `base` aquí para no recrear interval; usamos refs
     }, [authLoading, tok]);
 
     function renderCmdResult(data: CmdResponse) {
@@ -281,11 +272,13 @@ export default function Home() {
         setCmdLoading(true);
         try {
             const url = joinUrl(base, "/cmd");
-            const data = await postJson<CmdResponse>(url, { token: tok, message: msgClean });
+            const data = await postJson<CmdResponse>(url, {
+                token: tok,
+                message: msgClean,
+            });
             setOut(renderCmdResult(data));
             await pushHistory(msgClean);
 
-            // ✅ refresca estado luego de ejecutar
             void checkBackend("after_cmd");
         } catch (e: any) {
             const msg = String(e?.message ?? "Error");
@@ -314,6 +307,24 @@ export default function Home() {
             return;
         }
         await runCommand(message);
+    }
+
+    // ✅ TAB/ENTER: completa con la primera sugerencia si existe
+    function applyFirstSuggestion() {
+        if (cmdLoading) return false;
+        if (suggestions.length === 0) return false;
+        setCmd(suggestions[0]);
+        return true;
+    }
+
+    // ✅ ENTER: completa primero si está parcial
+    async function onSubmitSmart() {
+        const q = normalizeCmd(cmd).toUpperCase();
+        if (suggestions.length > 0 && q !== suggestions[0]) {
+            setCmd(suggestions[0]);
+            return;
+        }
+        await sendCmd();
     }
 
     async function logout() {
@@ -400,7 +411,11 @@ export default function Home() {
                     <Text style={styles.btnText}>{cmdLoading ? "..." : "Whoami"}</Text>
                 </Pressable>
 
-                <Pressable style={[styles.btn, styles.red]} onPress={logout} disabled={cmdLoading}>
+                <Pressable
+                    style={[styles.btn, styles.red]}
+                    onPress={logout}
+                    disabled={cmdLoading}
+                >
                     <Text style={styles.btnText}>Salir</Text>
                 </Pressable>
             </View>
@@ -411,13 +426,22 @@ export default function Home() {
                 value={cmd}
                 onChangeText={setCmd}
                 autoCapitalize="none"
-                onSubmitEditing={sendCmd}
+                onSubmitEditing={onSubmitSmart} // ✅ ENTER inteligente
                 returnKeyType="send"
                 editable={!cmdLoading}
                 placeholder="PING"
+                onKeyPress={(e) => {
+                    // ✅ TAB en web
+                    // @ts-ignore
+                    if (e?.nativeEvent?.key === "Tab") {
+                        // @ts-ignore
+                        e.preventDefault?.();
+                        applyFirstSuggestion();
+                    }
+                }}
             />
 
-            {/* ✅ NUEVO: Autocomplete / sugerencias */}
+            {/* ✅ Autocomplete / sugerencias */}
             {suggestions.length > 0 && (
                 <View style={styles.suggestBox}>
                     {suggestions.map((s) => (
@@ -425,7 +449,10 @@ export default function Home() {
                             key={s}
                             disabled={cmdLoading}
                             onPress={() => setCmd(s)}
-                            style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
+                            style={({ pressed }) => [
+                                styles.chip,
+                                pressed && { opacity: 0.85 },
+                            ]}
                         >
                             <Text style={styles.chipText}>{s}</Text>
                         </Pressable>
@@ -448,7 +475,10 @@ export default function Home() {
                                 key={h}
                                 disabled={cmdLoading}
                                 onPress={() => setCmd(h)}
-                                style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
+                                style={({ pressed }) => [
+                                    styles.chip,
+                                    pressed && { opacity: 0.85 },
+                                ]}
                             >
                                 <Text style={styles.chipText}>{h}</Text>
                             </Pressable>
@@ -502,14 +532,24 @@ const styles = StyleSheet.create({
     label: { fontSize: 14, opacity: 0.8, marginTop: 8 },
     input: { borderWidth: 1, borderColor: "#999", borderRadius: 10, padding: 12 },
 
-    btn: { backgroundColor: "black", padding: 14, borderRadius: 12, flex: 1, alignItems: "center" },
-    btnWide: { backgroundColor: "black", padding: 14, borderRadius: 12, alignItems: "center" },
+    btn: {
+        backgroundColor: "black",
+        padding: 14,
+        borderRadius: 12,
+        flex: 1,
+        alignItems: "center",
+    },
+    btnWide: {
+        backgroundColor: "black",
+        padding: 14,
+        borderRadius: 12,
+        alignItems: "center",
+    },
     red: { backgroundColor: "#b00020" },
     green: { backgroundColor: "#0b6b2d" },
 
     btnText: { color: "white", textAlign: "center", fontWeight: "700" },
 
-    // ✅ NUEVO: contenedor sugerencias
     suggestBox: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 
     historyBox: {
@@ -519,9 +559,17 @@ const styles = StyleSheet.create({
         padding: 10,
         gap: 8,
     },
-    historyHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    historyHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
     historyTitle: { fontSize: 12, fontWeight: "700", opacity: 0.8 },
-    historyClear: { fontSize: 12, fontWeight: "700", textDecorationLine: "underline" },
+    historyClear: {
+        fontSize: 12,
+        fontWeight: "700",
+        textDecorationLine: "underline",
+    },
 
     historyChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     chip: {
@@ -533,10 +581,15 @@ const styles = StyleSheet.create({
     },
     chipText: { fontSize: 12, fontWeight: "600" },
 
-    outBox: { borderWidth: 1, borderColor: "#999", borderRadius: 10, padding: 12, height: 220 },
+    outBox: {
+        borderWidth: 1,
+        borderColor: "#999",
+        borderRadius: 10,
+        padding: 12,
+        height: 220,
+    },
     outText: { fontFamily: "monospace" },
 
-    // ✅ Banner
     banner: {
         borderWidth: 1,
         borderColor: "#999",
@@ -548,8 +601,14 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         gap: 10,
     },
-    bannerOk: { borderColor: "#1b5e20", backgroundColor: "rgba(27,94,32,0.10)" },
-    bannerBad: { borderColor: "#b00020", backgroundColor: "rgba(176,0,32,0.08)" },
+    bannerOk: {
+        borderColor: "#1b5e20",
+        backgroundColor: "rgba(27,94,32,0.10)",
+    },
+    bannerBad: {
+        borderColor: "#b00020",
+        backgroundColor: "rgba(176,0,32,0.08)",
+    },
     bannerText: { fontSize: 13, fontWeight: "600" },
 
     bannerBtn: {
