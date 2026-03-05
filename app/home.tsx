@@ -25,6 +25,15 @@ const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
 const CHECK_INTERVAL_MS = 10000;
 
+// ✅ NUEVO: comandos sugeridos (ajusta según tu backend)
+const COMMAND_SUGGESTIONS = [
+    "PING",
+    "WHOAMI",
+    "HELP",
+    "STATUS",
+    "VERSION",
+];
+
 type VerifyResponse = {
     ok?: boolean;
     response?: string; // "TOKEN_OK"
@@ -98,6 +107,15 @@ export default function Home() {
 
     const base = useMemo(() => apiBase.trim(), [apiBase]);
     const tok = useMemo(() => (token ?? "").trim(), [token]);
+
+    // ✅ NUEVO: sugerencias según lo escrito
+    const suggestions = useMemo(() => {
+        const q = normalizeCmd(cmd).toUpperCase();
+        if (!q) return [];
+        // solo sugiere si el usuario está escribiendo la "primera palabra"
+        if (q.includes(" ")) return [];
+        return COMMAND_SUGGESTIONS.filter((c) => c.startsWith(q) && c !== q).slice(0, 6);
+    }, [cmd]);
 
     // ✅ refs para que el polling use valores actualizados sin re-montar interval
     const baseRef = useRef<string>("");
@@ -399,6 +417,22 @@ export default function Home() {
                 placeholder="PING"
             />
 
+            {/* ✅ NUEVO: Autocomplete / sugerencias */}
+            {suggestions.length > 0 && (
+                <View style={styles.suggestBox}>
+                    {suggestions.map((s) => (
+                        <Pressable
+                            key={s}
+                            disabled={cmdLoading}
+                            onPress={() => setCmd(s)}
+                            style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
+                        >
+                            <Text style={styles.chipText}>{s}</Text>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
+
             {history.length > 0 && (
                 <View style={styles.historyBox}>
                     <View style={styles.historyHeader}>
@@ -474,6 +508,9 @@ const styles = StyleSheet.create({
     green: { backgroundColor: "#0b6b2d" },
 
     btnText: { color: "white", textAlign: "center", fontWeight: "700" },
+
+    // ✅ NUEVO: contenedor sugerencias
+    suggestBox: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 
     historyBox: {
         borderWidth: 1,
