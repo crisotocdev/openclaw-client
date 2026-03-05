@@ -23,6 +23,13 @@ type CmdResponse = {
 const API_KEY = "moltbot_api";
 const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
+const CHECK_INTERVAL_MS = 10000;
+
+type VerifyResponse = {
+    ok?: boolean;
+    response?: string; // "TOKEN_OK"
+    role?: string;
+};
 
 function joinUrl(base: string, path: string) {
     const b = base.endsWith("/") ? base.slice(0, -1) : base;
@@ -64,7 +71,9 @@ async function postJson<T>(url: string, body: any): Promise<T> {
 
     if (!res.ok) {
         const msg =
-            (data && typeof data === "object" && (data.response || data.error || data.message)) ||
+            (data &&
+                typeof data === "object" &&
+                (data.response || data.error || data.message)) ||
             (typeof data === "string" ? data : "") ||
             `HTTP ${res.status}`;
         throw new Error(msg);
@@ -82,10 +91,25 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [cmdLoading, setCmdLoading] = useState(false);
 
+    // null = verificando/unknown
+    const [online, setOnline] = useState<null | boolean>(null);
+
     const [history, setHistory] = useState<string[]>([]);
 
     const base = useMemo(() => apiBase.trim(), [apiBase]);
     const tok = useMemo(() => (token ?? "").trim(), [token]);
+
+    // ✅ refs para que el polling use valores actualizados sin re-montar interval
+    const baseRef = useRef<string>("");
+    const tokRef = useRef<string>("");
+
+    useEffect(() => {
+        baseRef.current = base;
+    }, [base]);
+
+    useEffect(() => {
+        tokRef.current = tok;
+    }, [tok]);
 
     // Copiar feedback (web)
     const [copied, setCopied] = useState(false);
@@ -135,7 +159,55 @@ export default function Home() {
         } catch { }
     }
 
+    async function checkBackend(reason: string) {
+        const b = baseRef.current;
+        const t = tokRef.current;
+
+        if (!b) {
+            setOnline(null);
+            return;
+        }
+
+        try {
+            if (!t) {
+                setOnline(null);
+                return;
+            }
+
+            const url = joinUrl(b, "/auth/verify");
+            const data = await postJson<VerifyResponse>(url, { token: t });
+
+            const ok =
+                data &&
+                typeof data === "object" &&
+                (data.ok === true ||
+                    String(data.response ?? "").toUpperCase() === "TOKEN_OK");
+
+            setOnline(ok ? true : false);
+
+            // Si responde pero token inválido -> logout (auth, no red)
+            if (!ok) {
+                await signOut();
+                router.replace("/login");
+            }
+        } catch (e: any) {
+            const msg = String(e?.message ?? "");
+            if (
+                msg.toLowerCase().includes("token") ||
+                msg.toLowerCase().includes("unauthorized")
+            ) {
+                setOnline(false);
+                await signOut();
+                router.replace("/login");
+                return;
+            }
+            setOnline(false);
+        }
+    }
+
     useEffect(() => {
+        let timer: ReturnType<typeof setInterval> | null = null;
+
         (async () => {
             if (authLoading) return;
 
@@ -150,12 +222,23 @@ export default function Home() {
 
             setApiBase(a);
             await loadHistory();
+
+            // primer check
+            await checkBackend("init");
+
             setLoading(false);
+
+            // ✅ polling
+            timer = setInterval(() => {
+                void checkBackend("poll");
+            }, CHECK_INTERVAL_MS);
         })();
 
         return () => {
+            if (timer) clearInterval(timer);
             if (copiedTimer.current) clearTimeout(copiedTimer.current);
         };
+        // OJO: no metemos `base` aquí para no recrear interval; usamos refs
     }, [authLoading, tok]);
 
     function renderCmdResult(data: CmdResponse) {
@@ -183,10 +266,12 @@ export default function Home() {
             const data = await postJson<CmdResponse>(url, { token: tok, message: msgClean });
             setOut(renderCmdResult(data));
             await pushHistory(msgClean);
+
+            // ✅ refresca estado luego de ejecutar
+            void checkBackend("after_cmd");
         } catch (e: any) {
             const msg = String(e?.message ?? "Error");
 
-            // token inválido -> logout
             if (msg.toLowerCase().includes("token")) {
                 await signOut();
                 router.replace("/login");
@@ -194,6 +279,7 @@ export default function Home() {
             }
 
             Alert.alert("Error", msg);
+            setOnline(false);
         } finally {
             setCmdLoading(false);
         }
@@ -229,7 +315,6 @@ export default function Home() {
     async function onCopy() {
         if (!out || cmdLoading) return;
 
-        // Web only: navigator.clipboard
         try {
             // @ts-ignore
             if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
@@ -256,6 +341,35 @@ export default function Home() {
 
     return (
         <View style={styles.container}>
+            {/* ✅ Banner Online/Offline */}
+            <View
+                style={[
+                    styles.banner,
+                    online === true && styles.bannerOk,
+                    online === false && styles.bannerBad,
+                ]}
+            >
+                <Text style={styles.bannerText}>
+                    {online === null
+                        ? "⚪ Estado: verificando..."
+                        : online
+                            ? "🟢 Backend ONLINE"
+                            : "🔴 Backend OFFLINE"}
+                </Text>
+
+                <Pressable
+                    onPress={() => checkBackend("manual")}
+                    disabled={cmdLoading}
+                    style={({ pressed }) => [
+                        styles.bannerBtn,
+                        pressed && { opacity: 0.85 },
+                        cmdLoading && { opacity: 0.6 },
+                    ]}
+                >
+                    <Text style={styles.bannerBtnText}>Reintentar</Text>
+                </Pressable>
+            </View>
+
             <Text style={styles.title}>Panel</Text>
             <Text style={styles.small}>API: {base || "(no configurada)"}</Text>
 
@@ -314,13 +428,19 @@ export default function Home() {
                 onPress={sendCmd}
                 disabled={!canSend || cmdLoading}
             >
-                <Text style={styles.btnText}>{cmdLoading ? "Ejecutando..." : "Enviar CMD"}</Text>
+                <Text style={styles.btnText}>
+                    {cmdLoading ? "Ejecutando..." : "Enviar CMD"}
+                </Text>
             </Pressable>
 
             <Text style={styles.label}>Salida</Text>
 
             <Pressable
-                style={[styles.btnWide, (!out || cmdLoading) && { opacity: 0.5 }, copied && styles.green]}
+                style={[
+                    styles.btnWide,
+                    (!out || cmdLoading) && { opacity: 0.5 },
+                    copied && styles.green,
+                ]}
                 onPress={onCopy}
                 disabled={!out || cmdLoading}
             >
@@ -378,4 +498,31 @@ const styles = StyleSheet.create({
 
     outBox: { borderWidth: 1, borderColor: "#999", borderRadius: 10, padding: 12, height: 220 },
     outText: { fontFamily: "monospace" },
+
+    // ✅ Banner
+    banner: {
+        borderWidth: 1,
+        borderColor: "#999",
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+    bannerOk: { borderColor: "#1b5e20", backgroundColor: "rgba(27,94,32,0.10)" },
+    bannerBad: { borderColor: "#b00020", backgroundColor: "rgba(176,0,32,0.08)" },
+    bannerText: { fontSize: 13, fontWeight: "600" },
+
+    bannerBtn: {
+        borderWidth: 1,
+        borderColor: "#999",
+        borderRadius: 10,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    bannerBtnText: { fontSize: 12, fontWeight: "700" },
 });
