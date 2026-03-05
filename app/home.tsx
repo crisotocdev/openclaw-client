@@ -25,8 +25,22 @@ const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
 const CHECK_INTERVAL_MS = 10000;
 
-// ✅ comandos sugeridos
-const COMMAND_SUGGESTIONS = ["PING", "WHOAMI", "HELP", "STATUS", "VERSION"];
+// ✅ comandos sugeridos (alineados con tu backend actual)
+const COMMAND_SUGGESTIONS = [
+    // user + admin
+    "PING",
+    "TIME",
+    "PROCESOS",
+    "WHOAMI",
+    "SYSINFO",
+    "HELP",
+    "STATUS",
+    // admin
+    "NOTA",
+    "VSCODE",
+    "CHROME",
+    "PS",
+];
 
 type VerifyResponse = {
     ok?: boolean;
@@ -106,6 +120,7 @@ export default function Home() {
     const suggestions = useMemo(() => {
         const q = normalizeCmd(cmd).toUpperCase();
         if (!q) return [];
+        // solo sugiere si está escribiendo la primera palabra
         if (q.includes(" ")) return [];
         return COMMAND_SUGGESTIONS.filter((c) => c.startsWith(q) && c !== q).slice(
             0,
@@ -113,7 +128,7 @@ export default function Home() {
         );
     }, [cmd]);
 
-    // ✅ refs para polling
+    // ✅ refs para polling sin recrear interval
     const baseRef = useRef<string>("");
     const tokRef = useRef<string>("");
 
@@ -173,7 +188,7 @@ export default function Home() {
         } catch { }
     }
 
-    async function checkBackend(reason: string) {
+    async function checkBackend(_reason: string) {
         const b = baseRef.current;
         const t = tokRef.current;
 
@@ -276,6 +291,7 @@ export default function Home() {
                 token: tok,
                 message: msgClean,
             });
+
             setOut(renderCmdResult(data));
             await pushHistory(msgClean);
 
@@ -309,11 +325,14 @@ export default function Home() {
         await runCommand(message);
     }
 
-    // ✅ TAB/ENTER: completa con la primera sugerencia si existe
+    // ✅ completa con primera sugerencia (TAB)
     function applyFirstSuggestion() {
         if (cmdLoading) return false;
         if (suggestions.length === 0) return false;
-        setCmd(suggestions[0]);
+
+        const s = suggestions[0];
+        // PS lo dejamos con espacio para que puedas escribir argumento
+        setCmd(s === "PS" ? "PS " : s);
         return true;
     }
 
@@ -321,7 +340,8 @@ export default function Home() {
     async function onSubmitSmart() {
         const q = normalizeCmd(cmd).toUpperCase();
         if (suggestions.length > 0 && q !== suggestions[0]) {
-            setCmd(suggestions[0]);
+            const s = suggestions[0];
+            setCmd(s === "PS" ? "PS " : s);
             return;
         }
         await sendCmd();
@@ -448,11 +468,8 @@ export default function Home() {
                         <Pressable
                             key={s}
                             disabled={cmdLoading}
-                            onPress={() => setCmd(s)}
-                            style={({ pressed }) => [
-                                styles.chip,
-                                pressed && { opacity: 0.85 },
-                            ]}
+                            onPress={() => setCmd(s === "PS" ? "PS " : s)}
+                            style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
                         >
                             <Text style={styles.chipText}>{s}</Text>
                         </Pressable>
@@ -475,10 +492,7 @@ export default function Home() {
                                 key={h}
                                 disabled={cmdLoading}
                                 onPress={() => setCmd(h)}
-                                style={({ pressed }) => [
-                                    styles.chip,
-                                    pressed && { opacity: 0.85 },
-                                ]}
+                                style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
                             >
                                 <Text style={styles.chipText}>{h}</Text>
                             </Pressable>
