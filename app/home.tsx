@@ -24,10 +24,11 @@ const API_KEY = "moltbot_api";
 const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
 const CHECK_INTERVAL_MS = 10000;
+const USER_COMMANDS = ["PING", "TIME", "PROCESOS", "WHOAMI", "SYSINFO"];
+const ADMIN_COMMANDS = ["NOTA", "VSCODE", "CHROME", "PS"];
 
 // ✅ comandos sugeridos (alineados con tu backend actual)
 const COMMAND_SUGGESTIONS = [
-    // user + admin
     "PING",
     "TIME",
     "PROCESOS",
@@ -35,7 +36,6 @@ const COMMAND_SUGGESTIONS = [
     "SYSINFO",
     "HELP",
     "STATUS",
-    // admin
     "NOTA",
     "VSCODE",
     "CHROME",
@@ -44,9 +44,17 @@ const COMMAND_SUGGESTIONS = [
 
 type VerifyResponse = {
     ok?: boolean;
-    response?: string; // "TOKEN_OK"
+    response?: string;
     role?: string;
 };
+
+function CommandBadge({ label }: { label: string }) {
+    return (
+        <View style={styles.commandBadge}>
+            <Text style={styles.commandBadgeText}>{label}</Text>
+        </View>
+    );
+}
 
 function joinUrl(base: string, path: string) {
     const b = base.endsWith("/") ? base.slice(0, -1) : base;
@@ -107,20 +115,15 @@ export default function Home() {
     const [out, setOut] = useState("");
     const [loading, setLoading] = useState(true);
     const [cmdLoading, setCmdLoading] = useState(false);
-
-    // null = verificando/unknown
     const [online, setOnline] = useState<null | boolean>(null);
-
     const [history, setHistory] = useState<string[]>([]);
 
     const base = useMemo(() => apiBase.trim(), [apiBase]);
     const tok = useMemo(() => (token ?? "").trim(), [token]);
 
-    // ✅ sugerencias según lo escrito
     const suggestions = useMemo(() => {
         const q = normalizeCmd(cmd).toUpperCase();
         if (!q) return [];
-        // solo sugiere si está escribiendo la primera palabra
         if (q.includes(" ")) return [];
         return COMMAND_SUGGESTIONS.filter((c) => c.startsWith(q) && c !== q).slice(
             0,
@@ -128,7 +131,6 @@ export default function Home() {
         );
     }, [cmd]);
 
-    // ✅ refs para polling sin recrear interval
     const baseRef = useRef<string>("");
     const tokRef = useRef<string>("");
 
@@ -140,7 +142,6 @@ export default function Home() {
         tokRef.current = tok;
     }, [tok]);
 
-    // Copiar feedback (web)
     const [copied, setCopied] = useState(false);
     const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -214,7 +215,6 @@ export default function Home() {
 
             setOnline(ok ? true : false);
 
-            // token inválido -> logout
             if (!ok) {
                 await signOut();
                 router.replace("/login");
@@ -250,7 +250,6 @@ export default function Home() {
 
             setApiBase(a);
             await loadHistory();
-
             await checkBackend("init");
             setLoading(false);
 
@@ -325,18 +324,15 @@ export default function Home() {
         await runCommand(message);
     }
 
-    // ✅ completa con primera sugerencia (TAB)
     function applyFirstSuggestion() {
         if (cmdLoading) return false;
         if (suggestions.length === 0) return false;
 
         const s = suggestions[0];
-        // PS lo dejamos con espacio para que puedas escribir argumento
         setCmd(s === "PS" ? "PS " : s);
         return true;
     }
 
-    // ✅ ENTER: completa primero si está parcial
     async function onSubmitSmart() {
         const q = normalizeCmd(cmd).toUpperCase();
         if (suggestions.length > 0 && q !== suggestions[0]) {
@@ -389,8 +385,11 @@ export default function Home() {
     }
 
     return (
-        <View style={styles.container}>
-            {/* ✅ Banner Online/Offline */}
+        <ScrollView
+            style={styles.screen}
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled"
+        >
             <View
                 style={[
                     styles.banner,
@@ -446,12 +445,11 @@ export default function Home() {
                 value={cmd}
                 onChangeText={setCmd}
                 autoCapitalize="none"
-                onSubmitEditing={onSubmitSmart} // ✅ ENTER inteligente
+                onSubmitEditing={onSubmitSmart}
                 returnKeyType="send"
                 editable={!cmdLoading}
                 placeholder="PING"
                 onKeyPress={(e) => {
-                    // ✅ TAB en web
                     // @ts-ignore
                     if (e?.nativeEvent?.key === "Tab") {
                         // @ts-ignore
@@ -461,7 +459,6 @@ export default function Home() {
                 }}
             />
 
-            {/* ✅ Autocomplete / sugerencias */}
             {suggestions.length > 0 && (
                 <View style={styles.suggestBox}>
                     {suggestions.map((s) => (
@@ -476,6 +473,28 @@ export default function Home() {
                     ))}
                 </View>
             )}
+
+            <View style={styles.helpPanel}>
+                <Text style={styles.helpPanelTitle}>Comandos disponibles</Text>
+
+                <View style={styles.commandSection}>
+                    <Text style={styles.commandSectionTitle}>USER</Text>
+                    <View style={styles.commandList}>
+                        {USER_COMMANDS.map((cmdItem) => (
+                            <CommandBadge key={cmdItem} label={cmdItem} />
+                        ))}
+                    </View>
+                </View>
+
+                <View style={styles.commandSection}>
+                    <Text style={styles.commandSectionTitle}>ADMIN</Text>
+                    <View style={styles.commandList}>
+                        {ADMIN_COMMANDS.map((cmdItem) => (
+                            <CommandBadge key={cmdItem} label={cmdItem} />
+                        ))}
+                    </View>
+                </View>
+            </View>
 
             {history.length > 0 && (
                 <View style={styles.historyBox}>
@@ -530,21 +549,55 @@ export default function Home() {
                     {out || "(vacío)"}
                 </Text>
             </ScrollView>
-        </View>
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    center: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+    },
 
-    container: { flex: 1, padding: 20, gap: 10, paddingTop: 40 },
-    title: { fontSize: 24, fontWeight: "700" },
-    small: { fontSize: 12, opacity: 0.7 },
+    screen: {
+        flex: 1,
+    },
 
-    row: { flexDirection: "row", gap: 10 },
+    container: {
+        padding: 20,
+        gap: 10,
+        paddingTop: 40,
+        paddingBottom: 40,
+    },
 
-    label: { fontSize: 14, opacity: 0.8, marginTop: 8 },
-    input: { borderWidth: 1, borderColor: "#999", borderRadius: 10, padding: 12 },
+    title: {
+        fontSize: 24,
+        fontWeight: "700",
+    },
+
+    small: {
+        fontSize: 12,
+        opacity: 0.7,
+    },
+
+    row: {
+        flexDirection: "row",
+        gap: 10,
+    },
+
+    label: {
+        fontSize: 14,
+        opacity: 0.8,
+        marginTop: 8,
+    },
+
+    input: {
+        borderWidth: 1,
+        borderColor: "#999",
+        borderRadius: 10,
+        padding: 12,
+    },
 
     btn: {
         backgroundColor: "black",
@@ -553,18 +606,81 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: "center",
     },
+
     btnWide: {
         backgroundColor: "black",
         padding: 14,
         borderRadius: 12,
         alignItems: "center",
     },
-    red: { backgroundColor: "#b00020" },
-    green: { backgroundColor: "#0b6b2d" },
 
-    btnText: { color: "white", textAlign: "center", fontWeight: "700" },
+    red: {
+        backgroundColor: "#b00020",
+    },
 
-    suggestBox: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    green: {
+        backgroundColor: "#0b6b2d",
+    },
+
+    btnText: {
+        color: "white",
+        textAlign: "center",
+        fontWeight: "700",
+    },
+
+    suggestBox: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+
+    helpPanel: {
+        marginTop: 6,
+        padding: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#999",
+        backgroundColor: "rgba(0,0,0,0.03)",
+        gap: 6,
+    },
+
+    helpPanelTitle: {
+        fontSize: 16,
+        fontWeight: "700",
+        marginBottom: 4,
+    },
+
+    commandSection: {
+        marginTop: 4,
+        marginBottom: 6,
+    },
+
+    commandSectionTitle: {
+        fontSize: 13,
+        fontWeight: "700",
+        marginBottom: 8,
+        opacity: 0.8,
+    },
+
+    commandList: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+
+    commandBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "#999",
+        backgroundColor: "rgba(0,0,0,0.04)",
+    },
+
+    commandBadgeText: {
+        fontSize: 12,
+        fontWeight: "600",
+    },
 
     historyBox: {
         borderWidth: 1,
@@ -573,19 +689,31 @@ const styles = StyleSheet.create({
         padding: 10,
         gap: 8,
     },
+
     historyHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
     },
-    historyTitle: { fontSize: 12, fontWeight: "700", opacity: 0.8 },
+
+    historyTitle: {
+        fontSize: 12,
+        fontWeight: "700",
+        opacity: 0.8,
+    },
+
     historyClear: {
         fontSize: 12,
         fontWeight: "700",
         textDecorationLine: "underline",
     },
 
-    historyChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    historyChips: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+
     chip: {
         borderWidth: 1,
         borderColor: "#999",
@@ -593,7 +721,11 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         paddingHorizontal: 10,
     },
-    chipText: { fontSize: 12, fontWeight: "600" },
+
+    chipText: {
+        fontSize: 12,
+        fontWeight: "600",
+    },
 
     outBox: {
         borderWidth: 1,
@@ -602,7 +734,10 @@ const styles = StyleSheet.create({
         padding: 12,
         height: 220,
     },
-    outText: { fontFamily: "monospace" },
+
+    outText: {
+        fontFamily: "monospace",
+    },
 
     banner: {
         borderWidth: 1,
@@ -615,15 +750,21 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         gap: 10,
     },
+
     bannerOk: {
         borderColor: "#1b5e20",
         backgroundColor: "rgba(27,94,32,0.10)",
     },
+
     bannerBad: {
         borderColor: "#b00020",
         backgroundColor: "rgba(176,0,32,0.08)",
     },
-    bannerText: { fontSize: 13, fontWeight: "600" },
+
+    bannerText: {
+        fontSize: 13,
+        fontWeight: "600",
+    },
 
     bannerBtn: {
         borderWidth: 1,
@@ -634,5 +775,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
-    bannerBtnText: { fontSize: 12, fontWeight: "700" },
+
+    bannerBtnText: {
+        fontSize: 12,
+        fontWeight: "700",
+    },
 });

@@ -1,6 +1,201 @@
-Mañana seguimos con:
+📋 Roadmap de desarrollo — Moltbot
+FASE 1 — UX del panel (rápida, segura)
 
-👉 Auto-login
-👉 Tailscale
-👉 Pulir UI
-👉 README pro
+Objetivo: mejorar el panel sin tocar backend.
+
+1️⃣ Mostrar comandos disponibles en la UI
+
+Agregar un panel informativo.
+
+Ejemplo visual:
+
+Comandos disponibles
+
+USER
+PING
+TIME
+PROCESOS
+WHOAMI
+SYSINFO
+
+ADMIN
+NOTA
+VSCODE
+CHROME
+PS
+
+Esto ayuda mucho a nuevos usuarios.
+
+Commit:
+
+feat: command help panel in UI
+2️⃣ Filtrar sugerencias por rol
+
+Actualmente todos ven comandos admin.
+
+Debemos hacer:
+
+USER
+PING
+TIME
+PROCESOS
+WHOAMI
+SYSINFO
+
+ADMIN
++ NOTA
++ VSCODE
++ CHROME
++ PS
+
+Commit:
+
+feat: autocomplete filtered by role
+3️⃣ Historial inteligente
+
+Mejorar historial:
+
+ordenar por más usados
+
+mostrar últimos 10
+
+botón repetir comando
+
+Commit:
+
+feat: improved command history
+FASE 2 — Backend mejoras
+
+Objetivo: mejorar Rust server.
+
+4️⃣ Nuevo comando STATUS
+
+Para ver estado del servidor.
+
+Ejemplo:
+
+STATUS
+
+Respuesta:
+
+SERVER ONLINE
+VERSION 0.1.0
+UPTIME 2h 14m
+
+Commit:
+
+feat: status command
+5️⃣ Nuevo comando HELP
+
+El backend devuelve comandos disponibles.
+
+Ejemplo:
+
+HELP
+
+Respuesta:
+
+USER:
+PING
+TIME
+PROCESOS
+WHOAMI
+SYSINFO
+
+ADMIN:
+NOTA
+VSCODE
+CHROME
+PS
+
+Esto permite que la app se autoconfigure.
+
+Commit:
+
+feat: help command
+6️⃣ Seguridad básica
+
+Agregar:
+
+rate limit
+log comandos
+bloqueo token invalido
+
+Commit:
+
+feat: security improvements
+FASE 3 — Funciones potentes
+
+Aquí Moltbot empieza a verse como un sistema real.
+
+7️⃣ Streaming de logs
+
+Ver logs en tiempo real.
+
+Panel:
+
+Logs
+----------------
+PING OK
+SYSINFO OK
+NOTA OK
+
+Commit:
+
+feat: realtime logs
+8️⃣ Dashboard del servidor
+
+Panel visual.
+
+CPU
+RAM
+PROCESOS
+UPTIME
+
+Commit:
+
+feat: server dashboard
+9️⃣ Ejecutar scripts remotos
+
+Ejemplo:
+
+SCRIPT backup.ps1
+SCRIPT deploy.ps1
+
+Commit:
+
+feat: remote scripts
+FASE 4 — Nivel SaaS
+
+Si quieres convertirlo en producto real.
+
+🔟 Multi usuarios
+
+Usuarios con permisos.
+
+ADMIN
+USER
+READONLY
+1️⃣1️⃣ Multi servidor
+
+Controlar varios servidores.
+
+SERVER1
+SERVER2
+SERVER3
+1️⃣2️⃣ Web panel público
+
+Panel tipo:
+
+moltbot.app/dashboard
+📊 Orden recomendado para la próxima sesión
+
+Hazlos en este orden exacto:
+
+1️⃣ UI panel comandos
+2️⃣ Filtrar autocomplete por rol
+3️⃣ Historial mejorado
+4️⃣ comando STATUS
+5️⃣ comando HELP
+
+Con commits pequeños.
