@@ -24,23 +24,12 @@ const API_KEY = "moltbot_api";
 const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
 const CHECK_INTERVAL_MS = 10000;
+
 const USER_COMMANDS = ["PING", "TIME", "PROCESOS", "WHOAMI", "SYSINFO"];
 const ADMIN_COMMANDS = ["NOTA", "VSCODE", "CHROME", "PS"];
 
-// ✅ comandos sugeridos (alineados con tu backend actual)
-const COMMAND_SUGGESTIONS = [
-    "PING",
-    "TIME",
-    "PROCESOS",
-    "WHOAMI",
-    "SYSINFO",
-    "HELP",
-    "STATUS",
-    "NOTA",
-    "VSCODE",
-    "CHROME",
-    "PS",
-];
+const USER_SUGGESTIONS = ["PING", "TIME", "PROCESOS", "WHOAMI", "SYSINFO"];
+const ADMIN_EXTRA_SUGGESTIONS = ["NOTA", "VSCODE", "CHROME", "PS"];
 
 type VerifyResponse = {
     ok?: boolean;
@@ -117,19 +106,25 @@ export default function Home() {
     const [cmdLoading, setCmdLoading] = useState(false);
     const [online, setOnline] = useState<null | boolean>(null);
     const [history, setHistory] = useState<string[]>([]);
+    const [role, setRole] = useState("");
 
     const base = useMemo(() => apiBase.trim(), [apiBase]);
     const tok = useMemo(() => (token ?? "").trim(), [token]);
+
+    const allowedSuggestions = useMemo(() => {
+        const baseList = [...USER_SUGGESTIONS];
+        if (role.toUpperCase() === "ADMIN") {
+            return [...baseList, ...ADMIN_EXTRA_SUGGESTIONS];
+        }
+        return baseList;
+    }, [role]);
 
     const suggestions = useMemo(() => {
         const q = normalizeCmd(cmd).toUpperCase();
         if (!q) return [];
         if (q.includes(" ")) return [];
-        return COMMAND_SUGGESTIONS.filter((c) => c.startsWith(q) && c !== q).slice(
-            0,
-            6
-        );
-    }, [cmd]);
+        return allowedSuggestions.filter((c) => c.startsWith(q) && c !== q).slice(0, 6);
+    }, [cmd, allowedSuggestions]);
 
     const baseRef = useRef<string>("");
     const tokRef = useRef<string>("");
@@ -214,6 +209,10 @@ export default function Home() {
                     String(data.response ?? "").toUpperCase() === "TOKEN_OK");
 
             setOnline(ok ? true : false);
+
+            if (ok) {
+                setRole(String(data.role ?? "").toUpperCase());
+            }
 
             if (!ok) {
                 await signOut();
@@ -354,6 +353,7 @@ export default function Home() {
         await signOut();
         setOut("");
         setCmd("PING");
+        setRole("");
         router.replace("/login");
     }
 
