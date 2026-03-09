@@ -20,6 +20,23 @@ type CmdResponse = {
     response: string;
 };
 
+type VerifyResponse = {
+    ok?: boolean;
+    response?: string;
+    role?: string;
+};
+
+type HistoryStat = {
+    command: string;
+    count: number;
+    lastUsedAt: number;
+};
+
+type StoredHistoryV2 = {
+    stats: HistoryStat[];
+    recent: string[];
+};
+
 const API_KEY = "moltbot_api";
 const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
@@ -31,11 +48,19 @@ const ADMIN_COMMANDS = ["NOTA", "VSCODE", "CHROME", "PS"];
 const USER_SUGGESTIONS = ["PING", "TIME", "PROCESOS", "WHOAMI", "SYSINFO"];
 const ADMIN_EXTRA_SUGGESTIONS = ["NOTA", "VSCODE", "CHROME", "PS"];
 
-type VerifyResponse = {
-    ok?: boolean;
-    response?: string;
-    role?: string;
-};
+const VALID_COMMANDS = [
+    "PING",
+    "TIME",
+    "PROCESOS",
+    "WHOAMI",
+    "SYSINFO",
+    "HELP",
+    "STATUS",
+    "NOTA",
+    "VSCODE",
+    "CHROME",
+    "PS",
+];
 
 function CommandBadge({ label }: { label: string }) {
     return (
@@ -65,6 +90,21 @@ function dedupeKeepOrder(items: string[]) {
         out.push(it);
     }
     return out;
+}
+
+function normalizeHistoryCommand(s: string) {
+    return normalizeCmd(s).toUpperCase();
+}
+
+function isValidCommand(command: string) {
+    return VALID_COMMANDS.includes(command);
+}
+
+function sortHistoryStats(stats: HistoryStat[]) {
+    return [...stats].sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return b.lastUsedAt - a.lastUsedAt;
+    });
 }
 
 async function postJson<T>(url: string, body: any): Promise<T> {
@@ -105,7 +145,8 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [cmdLoading, setCmdLoading] = useState(false);
     const [online, setOnline] = useState<null | boolean>(null);
-    const [history, setHistory] = useState<string[]>([]);
+    const [historyStats, setHistoryStats] = useState<HistoryStat[]>([]);
+    const [recentHistory, setRecentHistory] = useState<string[]>([]);
     const [role, setRole] = useState("");
 
     const base = useMemo(() => apiBase.trim(), [apiBase]);
@@ -125,6 +166,10 @@ export default function Home() {
         if (q.includes(" ")) return [];
         return allowedSuggestions.filter((c) => c.startsWith(q) && c !== q).slice(0, 6);
     }, [cmd, allowedSuggestions]);
+
+    const topHistory = useMemo(() => {
+        return sortHistoryStats(historyStats).slice(0, HISTORY_MAX);
+    }, [historyStats]);
 
     const baseRef = useRef<string>("");
     const tokRef = useRef<string>("");
@@ -146,39 +191,142 @@ export default function Home() {
         copiedTimer.current = setTimeout(() => setCopied(false), 1200);
     }
 
+    async function saveHistory(nextStats: HistoryStat[], nextRecent: string[]) {
+        try {
+            const payload: StoredHistoryV2 = {
+                stats: nextStats,
+                recent: nextRecent,
+            };
+            await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(payload));
+        } catch { }
+    }
+
     async function loadHistory() {
         try {
             const raw = await AsyncStorage.getItem(HISTORY_KEY);
             if (!raw) return;
-            const arr = JSON.parse(raw);
-            if (Array.isArray(arr)) {
-                const cleaned = arr
-                    .map((x) => (typeof x === "string" ? normalizeCmd(x) : ""))
-                    .filter(Boolean);
-                setHistory(dedupeKeepOrder(cleaned).slice(0, HISTORY_MAX));
+
+            const parsed = JSON.parse(raw);
+
+            if (Array.isArray(parsed)) {
+                const cleanedRecent = dedupeKeepOrder(
+                    parsed
+                        .map((x) => (typeof x === "string" ? normalizeHistoryCommand(x) : ""))
+                        .filter((x) => x && isValidCommand(x))
+                ).slice(0, HISTORY_MAX);
+
+                const legacyStats: HistoryStat[] = cleanedRecent.map((command, index) => ({
+                    command,
+                    count: 1,
+                    lastUsedAt: Date.now() - index,
+                }));
+
+                setRecentHistory(cleanedRecent);
+                setHistoryStats(legacyStats);
+                void saveHistory(legacyStats, cleanedRecent);
+                return;
+            }
+
+            if (parsed && typeof parsed === "object") {
+                const statsRaw = Array.isArray(parsed.stats) ? parsed.stats : [];
+                const recentRaw = Array.isArray(parsed.recent) ? parsed.recent : [];
+
+                const cleanedStats: HistoryStat[] = statsRaw
+                    .map((x: any) => ({
+                        command:
+                            typeof x?.command === "string"
+                                ? normalizeHistoryCommand(x.command)
+                                : "",
+                        count:
+                            typeof x?.count === "number" && Number.isFinite(x.count) && x.count > 0
+                                ? Math.floor(x.count)
+                                : 1,
+                        lastUsedAt:
+                            typeof x?.lastUsedAt === "number" && Number.isFinite(x.lastUsedAt)
+                                ? x.lastUsedAt
+                                : 0,
+                    }))
+                    .filter((x: HistoryStat) => !!x.command && isValidCommand(x.command));
+
+                const dedupedStatsMap = new Map<string, HistoryStat>();
+                for (const item of cleanedStats) {
+                    const prev = dedupedStatsMap.get(item.command);
+                    if (!prev) {
+                        dedupedStatsMap.set(item.command, item);
+                    } else {
+                        dedupedStatsMap.set(item.command, {
+                            command: item.command,
+                            count: prev.count + item.count,
+                            lastUsedAt: Math.max(prev.lastUsedAt, item.lastUsedAt),
+                        });
+                    }
+                }
+
+                const finalStats = Array.from(dedupedStatsMap.values());
+
+                const cleanedRecent = dedupeKeepOrder(
+                    recentRaw
+                        .map((x: any) =>
+                            typeof x === "string" ? normalizeHistoryCommand(x) : ""
+                        )
+                        .filter((x: string) => !!x && isValidCommand(x))
+                ).slice(0, HISTORY_MAX);
+
+                setHistoryStats(finalStats);
+                setRecentHistory(cleanedRecent);
+                void saveHistory(finalStats, cleanedRecent);
             }
         } catch { }
     }
 
-    async function saveHistory(next: string[]) {
-        try {
-            await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-        } catch { }
-    }
-
     async function pushHistory(entry: string) {
-        const e = normalizeCmd(entry);
-        if (!e) return;
+        const normalized = normalizeHistoryCommand(entry);
+        if (!normalized) return;
+        if (!isValidCommand(normalized)) return;
 
-        setHistory((prev) => {
-            const next = dedupeKeepOrder([e, ...prev]).slice(0, HISTORY_MAX);
-            void saveHistory(next);
-            return next;
+        const now = Date.now();
+
+        setHistoryStats((prevStats) => {
+            const idx = prevStats.findIndex((x) => x.command === normalized);
+
+            let nextStats: HistoryStat[];
+            if (idx >= 0) {
+                nextStats = prevStats.map((item, i) =>
+                    i === idx
+                        ? {
+                            ...item,
+                            count: item.count + 1,
+                            lastUsedAt: now,
+                        }
+                        : item
+                );
+            } else {
+                nextStats = [
+                    ...prevStats,
+                    {
+                        command: normalized,
+                        count: 1,
+                        lastUsedAt: now,
+                    },
+                ];
+            }
+
+            setRecentHistory((prevRecent) => {
+                const nextRecent = dedupeKeepOrder([normalized, ...prevRecent]).slice(
+                    0,
+                    HISTORY_MAX
+                );
+                void saveHistory(nextStats, nextRecent);
+                return nextRecent;
+            });
+
+            return nextStats;
         });
     }
 
     async function clearHistory() {
-        setHistory([]);
+        setHistoryStats([]);
+        setRecentHistory([]);
         try {
             await AsyncStorage.removeItem(HISTORY_KEY);
         } catch { }
@@ -291,7 +439,7 @@ export default function Home() {
             });
 
             setOut(renderCmdResult(data));
-            await pushHistory(msgClean);
+            await pushHistory(data.command || msgClean);
 
             void checkBackend("after_cmd");
         } catch (e: any) {
@@ -342,6 +490,10 @@ export default function Home() {
         await sendCmd();
     }
 
+    async function repeatCommand(command: string) {
+        await runCommand(command);
+    }
+
     async function logout() {
         if (cmdLoading) return;
 
@@ -354,6 +506,8 @@ export default function Home() {
         setOut("");
         setCmd("PING");
         setRole("");
+        setHistoryStats([]);
+        setRecentHistory([]);
         router.replace("/login");
     }
 
@@ -375,6 +529,7 @@ export default function Home() {
 
     const canUse = !!tok && !!base && !cmdLoading;
     const canSend = !!cmd.trim() && canUse;
+    const hasHistory = topHistory.length > 0 || recentHistory.length > 0;
 
     if (loading || authLoading) {
         return (
@@ -420,6 +575,7 @@ export default function Home() {
 
             <Text style={styles.title}>Panel</Text>
             <Text style={styles.small}>API: {base || "(no configurada)"}</Text>
+            <Text style={styles.small}>Rol: {role || "(desconocido)"}</Text>
 
             <View style={styles.row}>
                 <Pressable
@@ -496,27 +652,87 @@ export default function Home() {
                 </View>
             </View>
 
-            {history.length > 0 && (
+            {hasHistory && (
                 <View style={styles.historyBox}>
                     <View style={styles.historyHeader}>
-                        <Text style={styles.historyTitle}>Historial</Text>
+                        <Text style={styles.historyTitle}>Historial inteligente</Text>
                         <Pressable onPress={clearHistory} disabled={cmdLoading}>
                             <Text style={styles.historyClear}>Limpiar</Text>
                         </Pressable>
                     </View>
 
-                    <View style={styles.historyChips}>
-                        {history.map((h) => (
-                            <Pressable
-                                key={h}
-                                disabled={cmdLoading}
-                                onPress={() => setCmd(h)}
-                                style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
-                            >
-                                <Text style={styles.chipText}>{h}</Text>
-                            </Pressable>
-                        ))}
-                    </View>
+                    {topHistory.length > 0 && (
+                        <View style={styles.historySection}>
+                            <Text style={styles.historySectionTitle}>Más usados</Text>
+
+                            <View style={styles.historyList}>
+                                {topHistory.map((item) => (
+                                    <View key={item.command} style={styles.historyRow}>
+                                        <View style={styles.historyInfo}>
+                                            <Text style={styles.historyCommand}>
+                                                {item.command}
+                                            </Text>
+                                            <Text style={styles.historyMeta}>
+                                                Usos: {item.count}
+                                            </Text>
+                                        </View>
+
+                                        <View style={styles.historyActions}>
+                                            <Pressable
+                                                disabled={cmdLoading}
+                                                onPress={() => setCmd(item.command)}
+                                                style={({ pressed }) => [
+                                                    styles.secondaryBtn,
+                                                    pressed && { opacity: 0.85 },
+                                                    cmdLoading && { opacity: 0.6 },
+                                                ]}
+                                            >
+                                                <Text style={styles.secondaryBtnText}>
+                                                    Cargar
+                                                </Text>
+                                            </Pressable>
+
+                                            <Pressable
+                                                disabled={cmdLoading}
+                                                onPress={() => repeatCommand(item.command)}
+                                                style={({ pressed }) => [
+                                                    styles.repeatBtn,
+                                                    pressed && { opacity: 0.85 },
+                                                    cmdLoading && { opacity: 0.6 },
+                                                ]}
+                                            >
+                                                <Text style={styles.repeatBtnText}>
+                                                    Repetir
+                                                </Text>
+                                            </Pressable>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+
+                    {recentHistory.length > 0 && (
+                        <View style={styles.historySection}>
+                            <Text style={styles.historySectionTitle}>Últimos 10</Text>
+
+                            <View style={styles.historyChips}>
+                                {recentHistory.map((item) => (
+                                    <Pressable
+                                        key={item}
+                                        disabled={cmdLoading}
+                                        onPress={() => setCmd(item)}
+                                        style={({ pressed }) => [
+                                            styles.chip,
+                                            pressed && { opacity: 0.85 },
+                                        ]}
+                                    >
+                                        <Text style={styles.chipText}>{item}</Text>
+                                    </Pressable>
+                                ))}
+                            </View>
+                        </View>
+                    )}
                 </View>
             )}
 
@@ -686,8 +902,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#999",
         borderRadius: 12,
-        padding: 10,
-        gap: 8,
+        padding: 12,
+        gap: 12,
     },
 
     historyHeader: {
@@ -697,9 +913,9 @@ const styles = StyleSheet.create({
     },
 
     historyTitle: {
-        fontSize: 12,
+        fontSize: 14,
         fontWeight: "700",
-        opacity: 0.8,
+        opacity: 0.9,
     },
 
     historyClear: {
@@ -708,10 +924,86 @@ const styles = StyleSheet.create({
         textDecorationLine: "underline",
     },
 
+    historySection: {
+        gap: 8,
+    },
+
+    historySectionTitle: {
+        fontSize: 12,
+        fontWeight: "700",
+        opacity: 0.8,
+    },
+
+    historyList: {
+        gap: 8,
+    },
+
+    historyRow: {
+        borderWidth: 1,
+        borderColor: "#999",
+        borderRadius: 12,
+        padding: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+
+    historyInfo: {
+        flex: 1,
+        gap: 2,
+    },
+
+    historyCommand: {
+        fontSize: 14,
+        fontWeight: "700",
+    },
+
+    historyMeta: {
+        fontSize: 12,
+        opacity: 0.75,
+    },
+
+    historyActions: {
+        flexDirection: "row",
+        gap: 8,
+        alignItems: "center",
+    },
+
     historyChips: {
         flexDirection: "row",
         flexWrap: "wrap",
         gap: 8,
+    },
+
+    secondaryBtn: {
+        borderWidth: 1,
+        borderColor: "#999",
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    secondaryBtnText: {
+        fontSize: 12,
+        fontWeight: "700",
+    },
+
+    repeatBtn: {
+        backgroundColor: "black",
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    repeatBtnText: {
+        color: "white",
+        fontSize: 12,
+        fontWeight: "700",
     },
 
     chip: {
