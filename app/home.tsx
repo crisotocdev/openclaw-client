@@ -42,10 +42,30 @@ const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
 const CHECK_INTERVAL_MS = 10000;
 
-const USER_COMMANDS = ["PING", "TIME", "PROCESOS", "WHOAMI", "SYSINFO"];
+const USER_COMMANDS = [
+    "PING",
+    "TIME",
+    "PROCESOS",
+    "WHOAMI",
+    "SYSINFO",
+    "STATUS",
+    "HELP",
+    "VERSION",
+];
+
 const ADMIN_COMMANDS = ["NOTA", "VSCODE", "CHROME", "PS"];
 
-const USER_SUGGESTIONS = ["PING", "TIME", "PROCESOS", "WHOAMI", "SYSINFO"];
+const USER_SUGGESTIONS = [
+    "PING",
+    "TIME",
+    "PROCESOS",
+    "WHOAMI",
+    "SYSINFO",
+    "STATUS",
+    "HELP",
+    "VERSION",
+];
+
 const ADMIN_EXTRA_SUGGESTIONS = ["NOTA", "VSCODE", "CHROME", "PS"];
 
 const VALID_COMMANDS = [
@@ -54,8 +74,9 @@ const VALID_COMMANDS = [
     "PROCESOS",
     "WHOAMI",
     "SYSINFO",
-    "HELP",
     "STATUS",
+    "HELP",
+    "VERSION",
     "NOTA",
     "VSCODE",
     "CHROME",
@@ -148,6 +169,7 @@ export default function Home() {
     const [historyStats, setHistoryStats] = useState<HistoryStat[]>([]);
     const [recentHistory, setRecentHistory] = useState<string[]>([]);
     const [role, setRole] = useState("");
+    const [lastCmdOk, setLastCmdOk] = useState<null | boolean>(null);
 
     const base = useMemo(() => apiBase.trim(), [apiBase]);
     const tok = useMemo(() => (token ?? "").trim(), [token]);
@@ -173,6 +195,7 @@ export default function Home() {
 
     const baseRef = useRef<string>("");
     const tokRef = useRef<string>("");
+    const outScrollRef = useRef<ScrollView | null>(null);
 
     useEffect(() => {
         baseRef.current = base;
@@ -181,6 +204,14 @@ export default function Home() {
     useEffect(() => {
         tokRef.current = tok;
     }, [tok]);
+
+    useEffect(() => {
+        if (!out) return;
+        const id = setTimeout(() => {
+            outScrollRef.current?.scrollToEnd({ animated: true });
+        }, 30);
+        return () => clearTimeout(id);
+    }, [out]);
 
     const [copied, setCopied] = useState(false);
     const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -412,12 +443,14 @@ export default function Home() {
     }, [authLoading, tok]);
 
     function renderCmdResult(data: CmdResponse) {
-        const human =
-            `${data.ok ? "✅" : "❌"} ${data.role} | ${data.command}` +
-            `${data.argument ? " " + data.argument : ""}\n${data.response}`;
+        const prompt = `moltbot@${String(data.role || "user").toLowerCase()} > ${data.command}${data.argument ? " " + data.argument : ""
+            }`;
 
-        const debug = `\n\n---\nJSON:\n${JSON.stringify(data, null, 2)}`;
-        return human + debug;
+        const statusLine = data.ok ? "[OK]" : "[ERROR]";
+        const body = data.response || "(sin respuesta)";
+        const debug = `\n\n--- JSON ---\n${JSON.stringify(data, null, 2)}`;
+
+        return `${prompt}\n${statusLine}\n\n${body}${debug}`;
     }
 
     async function runCommand(message: string) {
@@ -439,6 +472,7 @@ export default function Home() {
             });
 
             setOut(renderCmdResult(data));
+            setLastCmdOk(!!data.ok);
             await pushHistory(data.command || msgClean);
 
             void checkBackend("after_cmd");
@@ -451,6 +485,7 @@ export default function Home() {
                 return;
             }
 
+            setLastCmdOk(false);
             Alert.alert("Error", msg);
             setOnline(false);
         } finally {
@@ -508,6 +543,7 @@ export default function Home() {
         setRole("");
         setHistoryStats([]);
         setRecentHistory([]);
+        setLastCmdOk(null);
         router.replace("/login");
     }
 
@@ -573,7 +609,7 @@ export default function Home() {
                 </Pressable>
             </View>
 
-            <Text style={styles.title}>Panel</Text>
+            <Text style={styles.title}>Panel Moltbot</Text>
             <Text style={styles.small}>API: {base || "(no configurada)"}</Text>
             <Text style={styles.small}>Rol: {role || "(desconocido)"}</Text>
 
@@ -600,11 +636,12 @@ export default function Home() {
                 style={styles.input}
                 value={cmd}
                 onChangeText={setCmd}
-                autoCapitalize="none"
+                autoCapitalize="characters"
                 onSubmitEditing={onSubmitSmart}
                 returnKeyType="send"
                 editable={!cmdLoading}
                 placeholder="PING"
+                placeholderTextColor="#7c8796"
                 onKeyPress={(e) => {
                     // @ts-ignore
                     if (e?.nativeEvent?.key === "Tab") {
@@ -760,11 +797,33 @@ export default function Home() {
                 <Text style={styles.btnText}>{copied ? "✅ Copiado" : "Copiar salida"}</Text>
             </Pressable>
 
-            <ScrollView style={styles.outBox}>
-                <Text selectable style={styles.outText}>
-                    {out || "(vacío)"}
-                </Text>
-            </ScrollView>
+            <View
+                style={[
+                    styles.outShell,
+                    lastCmdOk === true && styles.outShellOk,
+                    lastCmdOk === false && styles.outShellBad,
+                ]}
+            >
+                <View style={styles.outHeader}>
+                    <Text style={styles.outHeaderText}>TERMINAL</Text>
+                    <Text style={styles.outHeaderStatus}>
+                        {cmdLoading ? "RUNNING..." : lastCmdOk === false ? "ERROR" : "READY"}
+                    </Text>
+                </View>
+
+                <ScrollView
+                    ref={outScrollRef}
+                    style={styles.outBox}
+                    contentContainerStyle={styles.outBoxContent}
+                    onContentSizeChange={() =>
+                        outScrollRef.current?.scrollToEnd({ animated: true })
+                    }
+                >
+                    <Text selectable style={styles.outText}>
+                        {out || "moltbot@panel > esperando comando..."}
+                    </Text>
+                </ScrollView>
+            </View>
         </ScrollView>
     );
 }
@@ -778,6 +837,7 @@ const styles = StyleSheet.create({
 
     screen: {
         flex: 1,
+        backgroundColor: "#f5f7fb",
     },
 
     container: {
@@ -810,9 +870,11 @@ const styles = StyleSheet.create({
 
     input: {
         borderWidth: 1,
-        borderColor: "#999",
-        borderRadius: 10,
+        borderColor: "#b8c0cc",
+        borderRadius: 12,
         padding: 12,
+        backgroundColor: "#ffffff",
+        fontWeight: "600",
     },
 
     btn: {
@@ -855,8 +917,8 @@ const styles = StyleSheet.create({
         padding: 14,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: "#999",
-        backgroundColor: "rgba(0,0,0,0.03)",
+        borderColor: "#d5dbe3",
+        backgroundColor: "#ffffff",
         gap: 6,
     },
 
@@ -889,8 +951,8 @@ const styles = StyleSheet.create({
         paddingVertical: 7,
         borderRadius: 999,
         borderWidth: 1,
-        borderColor: "#999",
-        backgroundColor: "rgba(0,0,0,0.04)",
+        borderColor: "#c8d0da",
+        backgroundColor: "#eef3f8",
     },
 
     commandBadgeText: {
@@ -900,10 +962,11 @@ const styles = StyleSheet.create({
 
     historyBox: {
         borderWidth: 1,
-        borderColor: "#999",
+        borderColor: "#d5dbe3",
         borderRadius: 12,
         padding: 12,
         gap: 12,
+        backgroundColor: "#ffffff",
     },
 
     historyHeader: {
@@ -940,13 +1003,14 @@ const styles = StyleSheet.create({
 
     historyRow: {
         borderWidth: 1,
-        borderColor: "#999",
+        borderColor: "#d5dbe3",
         borderRadius: 12,
         padding: 10,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
         gap: 10,
+        backgroundColor: "#fafbfd",
     },
 
     historyInfo: {
@@ -984,6 +1048,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         alignItems: "center",
         justifyContent: "center",
+        backgroundColor: "#ffffff",
     },
 
     secondaryBtnText: {
@@ -1008,10 +1073,11 @@ const styles = StyleSheet.create({
 
     chip: {
         borderWidth: 1,
-        borderColor: "#999",
+        borderColor: "#c8d0da",
         borderRadius: 999,
         paddingVertical: 6,
         paddingHorizontal: 10,
+        backgroundColor: "#ffffff",
     },
 
     chipText: {
@@ -1019,16 +1085,60 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
 
-    outBox: {
+    outShell: {
+        borderRadius: 14,
+        overflow: "hidden",
         borderWidth: 1,
-        borderColor: "#999",
-        borderRadius: 10,
+        borderColor: "#1f2937",
+        backgroundColor: "#0b1220",
+        marginTop: 4,
+    },
+
+    outShellOk: {
+        borderColor: "#14532d",
+    },
+
+    outShellBad: {
+        borderColor: "#7f1d1d",
+    },
+
+    outHeader: {
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: "rgba(255,255,255,0.08)",
+        backgroundColor: "#111827",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
+
+    outHeaderText: {
+        color: "#e5e7eb",
+        fontSize: 12,
+        fontWeight: "700",
+        letterSpacing: 1,
+    },
+
+    outHeaderStatus: {
+        color: "#93c5fd",
+        fontSize: 11,
+        fontWeight: "700",
+    },
+
+    outBox: {
+        height: 360,
+    },
+
+    outBoxContent: {
         padding: 12,
-        height: 220,
     },
 
     outText: {
         fontFamily: "monospace",
+        color: "#00ff9c",
+        lineHeight: 20,
+        fontSize: 13,
     },
 
     banner: {
@@ -1066,6 +1176,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         alignItems: "center",
         justifyContent: "center",
+        backgroundColor: "#ffffff",
     },
 
     bannerBtnText: {

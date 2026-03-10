@@ -1,201 +1,158 @@
-📋 Roadmap de desarrollo — Moltbot
-FASE 1 — UX del panel (rápida, segura)
+📋 Próxima sesión — Plan de trabajo Moltbot
+Estado actual del proyecto
 
-Objetivo: mejorar el panel sin tocar backend.
+Frontend:
 
-1️⃣ Mostrar comandos disponibles en la UI
+✅ Panel funcionando
 
-Agregar un panel informativo.
+✅ Autocomplete por rol
 
-Ejemplo visual:
+✅ Historial inteligente
 
-Comandos disponibles
+✅ Botón repetir comando
 
-USER
+✅ Filtro de comandos inválidos
+
+Backend:
+
+⏳ Falta implementar comandos internos (STATUS, HELP)
+
+1️⃣ Abrir las apps necesarias
+
+Abrir estas 3 cosas:
+
+1️⃣ VSCode
+
+Abrir el proyecto:
+
+reactNativeMoltbot
+
+y también si lo tienes separado:
+
+moltbot_server
+2️⃣ Terminal backend (Rust)
+
+Ir a la carpeta del servidor:
+
+moltbot_server
+
+y ejecutar:
+
+cargo run
+
+Debe mostrar algo como:
+
+Server listening on 0.0.0.0:8080
+3️⃣ Terminal frontend (React Native)
+
+Ir a:
+
+reactNativeMoltbot
+
+y ejecutar:
+
+npm start
+
+o
+
+npx expo start
+
+Luego abrir:
+
+http://localhost:8081
+2️⃣ Verificar que todo esté funcionando
+
+En el panel probar:
+
 PING
 TIME
-PROCESOS
 WHOAMI
-SYSINFO
-
-ADMIN
-NOTA
-VSCODE
-CHROME
-PS
-
-Esto ayuda mucho a nuevos usuarios.
-
-Commit:
-
-feat: command help panel in UI
-2️⃣ Filtrar sugerencias por rol
-
-Actualmente todos ven comandos admin.
-
-Debemos hacer:
-
-USER
-PING
-TIME
 PROCESOS
-WHOAMI
-SYSINFO
 
-ADMIN
-+ NOTA
-+ VSCODE
-+ CHROME
-+ PS
+Confirmar que:
 
-Commit:
+backend aparece ONLINE
 
-feat: autocomplete filtered by role
-3️⃣ Historial inteligente
+historial inteligente funciona
 
-Mejorar historial:
+botón Repetir funciona
 
-ordenar por más usados
+3️⃣ Implementar comando STATUS (Backend Rust)
 
-mostrar últimos 10
+Archivo a modificar:
 
-botón repetir comando
+moltbot_server/src/commands.rs
 
-Commit:
-
-feat: improved command history
-FASE 2 — Backend mejoras
-
-Objetivo: mejorar Rust server.
-
-4️⃣ Nuevo comando STATUS
-
-Para ver estado del servidor.
-
-Ejemplo:
+Agregar comando:
 
 STATUS
 
-Respuesta:
+Respuesta esperada:
 
 SERVER ONLINE
 VERSION 0.1.0
-UPTIME 2h 14m
+UPTIME <tiempo>
+4️⃣ Implementar comando HELP (Backend Rust)
 
-Commit:
-
-feat: status command
-5️⃣ Nuevo comando HELP
-
-El backend devuelve comandos disponibles.
-
-Ejemplo:
+Agregar comando:
 
 HELP
 
-Respuesta:
+Debe devolver:
 
-USER:
 PING
 TIME
 PROCESOS
 WHOAMI
 SYSINFO
-
-ADMIN:
+STATUS
+HELP
 NOTA
 VSCODE
 CHROME
 PS
+5️⃣ Probar desde el panel
 
-Esto permite que la app se autoconfigure.
+En el panel escribir:
 
-Commit:
+STATUS
 
-feat: help command
-6️⃣ Seguridad básica
+y luego:
 
-Agregar:
+HELP
 
-rate limit
-log comandos
-bloqueo token invalido
+Confirmar que:
 
-Commit:
+aparecen en la salida
 
-feat: security improvements
-FASE 3 — Funciones potentes
+se guardan en historial
 
-Aquí Moltbot empieza a verse como un sistema real.
+6️⃣ Hacer commit
 
-7️⃣ Streaming de logs
+Cuando funcione:
 
-Ver logs en tiempo real.
+git add .
+git commit -m "feat: backend STATUS and HELP commands"
+🚀 Próximo paso después de eso
 
-Panel:
+En la siguiente mejora del proyecto haremos:
 
-Logs
-----------------
-PING OK
-SYSINFO OK
-NOTA OK
+Mejoras UI
+terminal style output
+scroll automático
+colores por tipo de respuesta
+Mejoras backend
+historial persistente
+logs de comandos
+control de sesiones
+🧠 Recordatorio importante para la próxima sesión
 
-Commit:
+Ejecutar siempre en este orden:
 
-feat: realtime logs
-8️⃣ Dashboard del servidor
+1️⃣ cargo run
+2️⃣ npx expo start
+3️⃣ abrir localhost:8081
 
-Panel visual.
+Si quieres, en la próxima sesión también podemos hacer algo muy potente para Moltbot:
 
-CPU
-RAM
-PROCESOS
-UPTIME
-
-Commit:
-
-feat: server dashboard
-9️⃣ Ejecutar scripts remotos
-
-Ejemplo:
-
-SCRIPT backup.ps1
-SCRIPT deploy.ps1
-
-Commit:
-
-feat: remote scripts
-FASE 4 — Nivel SaaS
-
-Si quieres convertirlo en producto real.
-
-🔟 Multi usuarios
-
-Usuarios con permisos.
-
-ADMIN
-USER
-READONLY
-1️⃣1️⃣ Multi servidor
-
-Controlar varios servidores.
-
-SERVER1
-SERVER2
-SERVER3
-1️⃣2️⃣ Web panel público
-
-Panel tipo:
-
-moltbot.app/dashboard
-📊 Orden recomendado para la próxima sesión
-
-Hazlos en este orden exacto:
-
-1️⃣ UI panel comandos
-2️⃣ Filtrar autocomplete por rol
-3️⃣ Historial mejorado
-4️⃣ comando STATUS
-5️⃣ comando HELP
-
-Con commits pequeños.
+⚡ modo terminal real (tipo hacker / CLI visual)
