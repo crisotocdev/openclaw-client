@@ -1,104 +1,8 @@
 📋 Próxima sesión — Plan de trabajo Moltbot
 Estado actual del proyecto
+Backend (Rust)
 
-Frontend:
-
-✅ Panel funcionando
-
-✅ Autocomplete por rol
-
-✅ Historial inteligente
-
-✅ Botón repetir comando
-
-✅ Filtro de comandos inválidos
-
-Backend:
-
-⏳ Falta implementar comandos internos (STATUS, HELP)
-
-1️⃣ Abrir las apps necesarias
-
-Abrir estas 3 cosas:
-
-1️⃣ VSCode
-
-Abrir el proyecto:
-
-reactNativeMoltbot
-
-y también si lo tienes separado:
-
-moltbot_server
-2️⃣ Terminal backend (Rust)
-
-Ir a la carpeta del servidor:
-
-moltbot_server
-
-y ejecutar:
-
-cargo run
-
-Debe mostrar algo como:
-
-Server listening on 0.0.0.0:8080
-3️⃣ Terminal frontend (React Native)
-
-Ir a:
-
-reactNativeMoltbot
-
-y ejecutar:
-
-npm start
-
-o
-
-npx expo start
-
-Luego abrir:
-
-http://localhost:8081
-2️⃣ Verificar que todo esté funcionando
-
-En el panel probar:
-
-PING
-TIME
-WHOAMI
-PROCESOS
-
-Confirmar que:
-
-backend aparece ONLINE
-
-historial inteligente funciona
-
-botón Repetir funciona
-
-3️⃣ Implementar comando STATUS (Backend Rust)
-
-Archivo a modificar:
-
-moltbot_server/src/commands.rs
-
-Agregar comando:
-
-STATUS
-
-Respuesta esperada:
-
-SERVER ONLINE
-VERSION 0.1.0
-UPTIME <tiempo>
-4️⃣ Implementar comando HELP (Backend Rust)
-
-Agregar comando:
-
-HELP
-
-Debe devolver:
+Comandos funcionando:
 
 PING
 TIME
@@ -107,52 +11,221 @@ WHOAMI
 SYSINFO
 STATUS
 HELP
+VERSION
 NOTA
 VSCODE
 CHROME
 PS
-5️⃣ Probar desde el panel
 
-En el panel escribir:
+STATUS ahora incluye:
 
+SERVER ONLINE
+VERSION 0.1.0
+UPTIME HH:MM:SS
+Frontend (React Native)
+
+Panel funcionando con:
+
+terminal visual
+auto scroll
+historial inteligente
+autocomplete por rol
+botón repetir comando
+copiar salida
+estado ONLINE/OFFLINE
+1️⃣ Abrir las apps necesarias
+
+Abrir estas 3 cosas.
+
+1. VSCode
+
+Abrir proyectos:
+
+reactNativeMoltbot
+moltbot_server
+2. Backend (Rust)
+
+Abrir terminal en:
+
+moltbot_server
+
+ejecutar:
+
+cargo run
+
+Debe mostrar:
+
+HTTP server escuchando en http://0.0.0.0:8080
+3. Frontend (React Native)
+
+Abrir terminal en:
+
+reactNativeMoltbot
+
+ejecutar:
+
+npx expo start
+
+Abrir:
+
+http://localhost:8081
+2️⃣ Verificación rápida
+
+Probar en el panel:
+
+PING
 STATUS
-
-y luego:
-
 HELP
+WHOAMI
+PROCESOS
 
-Confirmar que:
+Confirmar:
 
-aparecen en la salida
+terminal auto-scroll funciona
+historial guarda comandos
+repetir comando funciona
+backend aparece ONLINE
+STATUS muestra uptime real
+3️⃣ Próxima mejora del proyecto
+🧹 Botón "Limpiar terminal"
 
-se guardan en historial
+Agregar botón en frontend para borrar salida.
 
-6️⃣ Hacer commit
+Objetivo
 
-Cuando funcione:
+Poder limpiar:
+
+terminal output
+
+sin recargar la página.
+
+Implementación
+
+En home.tsx
+
+agregar botón:
+
+Limpiar terminal
+
+que haga:
+
+setOut("")
+4️⃣ Mejora visual de la terminal
+
+Pequeñas mejoras:
+
+1️⃣ Color para errores
+
+Si comando falla:
+
+texto rojo
+
+Si funciona:
+
+texto verde
+2️⃣ Header más claro
+
+Mostrar:
+
+TERMINAL
+READY / RUNNING
+3️⃣ Ocultar JSON debug por defecto
+
+El JSON actual:
+
+--- JSON ---
+
+solo mostrarlo si se activa un botón:
+
+Mostrar debug
+5️⃣ Backend mejora pequeña
+
+Agregar comando nuevo:
+
+UPTIME
+
+Respuesta:
+
+00:14:22
+
+Esto permite consultar uptime directo.
+
+6️⃣ Backend mejora importante (siguiente etapa)
+📜 Logs de comandos
+
+Guardar en archivo:
+
+timestamp
+ip
+role
+command
+argument
+resultado
+
+ejemplo log:
+
+2026-03-10 21:41 ADMIN STATUS OK
+2026-03-10 21:42 USER PING OK
+
+Esto permitirá luego crear comandos:
+
+LOGS
+LAST
+HISTORY
+7️⃣ Commit recomendado
+
+Cuando avances algo:
 
 git add .
-git commit -m "feat: backend STATUS and HELP commands"
-🚀 Próximo paso después de eso
+git commit -m "feat: add clear terminal button"
+git push origin master
+🚀 Mejora grande futura (no para ahora)
 
-En la siguiente mejora del proyecto haremos:
+Cuando el sistema esté más estable:
 
-Mejoras UI
-terminal style output
-scroll automático
-colores por tipo de respuesta
-Mejoras backend
-historial persistente
-logs de comandos
-control de sesiones
-🧠 Recordatorio importante para la próxima sesión
+Modo agente
 
-Ejecutar siempre en este orden:
+Permitir instrucciones tipo:
 
-1️⃣ cargo run
-2️⃣ npx expo start
-3️⃣ abrir localhost:8081
+revisa estado del backend
+abre vscode
+compila proyecto
 
-Si quieres, en la próxima sesión también podemos hacer algo muy potente para Moltbot:
+La IA las traducirá a comandos internos.
 
-⚡ modo terminal real (tipo hacker / CLI visual)
+🧠 Recordatorio importante
+
+Siempre ejecutar en este orden:
+
+1 cargo run
+2 npx expo start
+3 abrir localhost:8081
+Estado real del proyecto ahora
+
+Tu Moltbot ya tiene:
+
+backend estable
+terminal visual
+control de comandos
+historial inteligente
+autenticación
+roles
+uptime real
+
+Ya es una base sólida de agente operativo remoto.
+
+Cuando vuelvas de Blender, si quieres, también puedo ayudarte a implementar la siguiente mejora potente para Moltbot:
+
+⚡ comandos encadenados (macros)
+
+ejemplo:
+
+WORK
+
+que ejecute:
+
+VSCODE
+STATUS
+PROCESOS
+
+Eso lo vuelve muchísimo más útil.
