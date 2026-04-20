@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../auth/AuthContext";
+import { useCommandHandler } from "../hooks/useCommandHandler";
 
 type CmdResponse = {
   ok: boolean;
@@ -178,19 +179,45 @@ async function postJson<T>(url: string, body: any): Promise<T> {
 export default function Home() {
   const { token, signOut, loading: authLoading } = useAuth();
 
+  // 🔹 STATES (UNA SOLA VEZ)
   const [apiBase, setApiBase] = useState("");
   const [cmd, setCmd] = useState("PING");
   const [out, setOut] = useState("");
   const [loading, setLoading] = useState(true);
-  const [cmdLoading, setCmdLoading] = useState(false);
   const [online, setOnline] = useState<null | boolean>(null);
   const [historyStats, setHistoryStats] = useState<HistoryStat[]>([]);
   const [recentHistory, setRecentHistory] = useState<string[]>([]);
   const [role, setRole] = useState("");
   const [lastCmdOk, setLastCmdOk] = useState<null | boolean>(null);
 
+  // 🔹 MEMOS (ANTES DE USARLOS)
   const base = useMemo(() => apiBase.trim(), [apiBase]);
   const tok = useMemo(() => (token ?? "").trim(), [token]);
+
+  // 🔹 HOOK PERSONALIZADO (YA PUEDE USAR base y tok)
+  const { executeCommand, cmdLoading } = useCommandHandler({
+    base,
+    token: tok,
+    onResult: setOut,
+    onOk: setLastCmdOk,
+    onError: async (e) => {
+      const msg = String(e?.message ?? "Error");
+
+      if (msg.toLowerCase().includes("token")) {
+        await signOut();
+        router.replace("/login");
+        return;
+      }
+
+      Alert.alert("Error", msg);
+      setOnline(false);
+    },
+  });
+
+  // 🔹 REFS
+  const baseRef = useRef<string>("");
+  const tokRef = useRef<string>("");
+  const outScrollRef = useRef<ScrollView | null>(null);
 
   const allowedSuggestions = useMemo(() => {
     const baseList = [...USER_SUGGESTIONS];
@@ -212,10 +239,6 @@ export default function Home() {
   const topHistory = useMemo(() => {
     return sortHistoryStats(historyStats).slice(0, HISTORY_MAX);
   }, [historyStats]);
-
-  const baseRef = useRef<string>("");
-  const tokRef = useRef<string>("");
-  const outScrollRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
     baseRef.current = base;
@@ -480,48 +503,8 @@ export default function Home() {
     return `${prompt}\n${statusLine}\n\n${body}${debug}`;
   }
 
-  async function runCommand(message: string) {
-    if (!base || !tok) {
-      router.replace("/login");
-      return;
-    }
-    if (cmdLoading) return;
-
-    const msgClean = normalizeCmd(message);
-    if (!msgClean) return;
-
-    setCmdLoading(true);
-    try {
-      const url = joinUrl(base, "/cmd");
-      const data = await postJson<CmdResponse>(url, {
-        token: tok,
-        message: msgClean,
-      });
-
-      setOut(renderCmdResult(data));
-      setLastCmdOk(!!data.ok);
-      await pushHistory(data.command || msgClean);
-
-      void checkBackend("after_cmd");
-    } catch (e: any) {
-      const msg = String(e?.message ?? "Error");
-
-      if (msg.toLowerCase().includes("token")) {
-        await signOut();
-        router.replace("/login");
-        return;
-      }
-
-      setLastCmdOk(false);
-      Alert.alert("Error", msg);
-      setOnline(false);
-    } finally {
-      setCmdLoading(false);
-    }
-  }
-
   async function whoami() {
-    await runCommand("WHOAMI");
+    await executeCommand("WHOAMI");
   }
 
   async function sendCmd() {
@@ -530,7 +513,12 @@ export default function Home() {
       Alert.alert("Falta comando", "Escribe un comando (ej: PING).");
       return;
     }
-    await runCommand(message);
+    const data = await executeCommand(message);
+
+    if (data) {
+      await pushHistory(data.command || message);
+      checkBackend("after_cmd");
+    }
   }
 
   function applyFirstSuggestion() {
@@ -553,7 +541,12 @@ export default function Home() {
   }
 
   async function repeatCommand(command: string) {
-    await runCommand(command);
+    const data = await executeCommand(command);
+
+    if (data) {
+      await pushHistory(data.command || command);
+      checkBackend("after_cmd");
+    }
   }
 
   async function logout() {
@@ -707,7 +700,13 @@ export default function Home() {
               <CommandBadge
                 key={cmdItem}
                 label={cmdItem}
-                onPress={(cmd) => runCommand(cmd)}
+                onPress={async (cmd) => {
+                  const data = await executeCommand(cmd);
+                  if (data) {
+                    await pushHistory(data.command || cmd);
+                    checkBackend("after_cmd");
+                  }
+                }}
                 disabled={cmdLoading}
               />
             ))}
