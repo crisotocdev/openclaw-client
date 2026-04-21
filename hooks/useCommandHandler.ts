@@ -47,6 +47,7 @@ async function postJson<T>(url: string, body: any): Promise<T> {
   return data as T;
 }
 
+// 🔥 RENDER PRO
 function renderCmdResult(data: CmdResponse) {
   const prompt = `moltbot@${String(data.role || "user").toLowerCase()} > ${data.command}${
     data.argument ? " " + data.argument : ""
@@ -54,14 +55,35 @@ function renderCmdResult(data: CmdResponse) {
 
   const statusLine = data.ok ? "[OK]" : "[ERROR]";
 
-  // 🔹 CASO ESPECIAL: STATUS
+  // 🔹 STATUS PROCESADO
   if (data.command === "STATUS") {
+    let parsed: any = null;
+
+    try {
+      parsed = JSON.parse(data.response);
+    } catch {
+      return `${prompt}\n[ERROR]\n\nInvalid STATUS JSON`;
+    }
+
+    const cpu = Number(parsed.cpu || 0);
+    const ramUsed = Number(parsed.ram_used || 0) / 1024;
+    const ramTotal = Number(parsed.ram_total || 0) / 1024;
+
+    const statusText = parsed.status === "online" ? "🟢 ONLINE" : "🔴 OFFLINE";
+
     return `${prompt}
 ${statusLine}
 
 🟢 SYSTEM STATUS
 
-${data.response}
+STATUS: ${statusText}
+VERSION: ${parsed.version}
+UPTIME: ${parsed.uptime}
+OS: ${parsed.os}
+PID: ${parsed.pid}
+
+CPU: ${cpu.toFixed(2)}%
+RAM: ${ramUsed.toFixed(1)} / ${ramTotal.toFixed(1)} GB
 `;
   }
 
