@@ -53,6 +53,19 @@ function renderCmdResult(data: CmdResponse) {
   }`;
 
   const statusLine = data.ok ? "[OK]" : "[ERROR]";
+
+  // 🔹 CASO ESPECIAL: STATUS
+  if (data.command === "STATUS") {
+    return `${prompt}
+${statusLine}
+
+🟢 SYSTEM STATUS
+
+${data.response}
+`;
+  }
+
+  // 🔹 DEFAULT
   const body = data.response || "(sin respuesta)";
   const debug = `\n\n--- JSON ---\n${JSON.stringify(data, null, 2)}`;
 

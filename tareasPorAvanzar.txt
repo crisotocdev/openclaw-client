@@ -1,231 +1,126 @@
-📋 Próxima sesión — Plan de trabajo Moltbot
-Estado actual del proyecto
-Backend (Rust)
+# 🧠 MOLTBOT – ROADMAP SIGUIENTE
 
-Comandos funcionando:
+## ✅ ESTADO ACTUAL
 
-PING
-TIME
-PROCESOS
-WHOAMI
-SYSINFO
-STATUS
-HELP
-VERSION
-NOTA
-VSCODE
-CHROME
-PS
+* App funcionando al 100%
+* Error de hooks corregido (base / online)
+* Conexión backend OK
+* Historial inteligente operativo
+* Autocomplete básico funcionando
 
-STATUS ahora incluye:
+---
 
-SERVER ONLINE
-VERSION 0.1.0
-UPTIME HH:MM:SS
-Frontend (React Native)
+## 🚀 SIGUIENTE FASE (PRIORIDAD ALTA)
 
-Panel funcionando con:
+### 1. 🎛 Panel UI de comandos (MEJORAR)
 
-terminal visual
-auto scroll
-historial inteligente
-autocomplete por rol
-botón repetir comando
-copiar salida
-estado ONLINE/OFFLINE
-1️⃣ Abrir las apps necesarias
+* [ ] Separar visualmente:
 
-Abrir estas 3 cosas.
+  * Input
+  * Sugerencias
+  * Historial
+* [ ] Agregar iconos por comando (PING, STATUS, etc.)
+* [ ] Animaciones suaves al ejecutar comando
+* [ ] Mejorar estilo tipo “terminal real”
 
-1. VSCode
+---
 
-Abrir proyectos:
+### 2. 🧠 Autocomplete inteligente por rol
 
-reactNativeMoltbot
-moltbot_server
-2. Backend (Rust)
+* [ ] Filtrar comandos según rol (USER / ADMIN)
+* [ ] Evitar mostrar comandos no permitidos
+* [ ] Mejorar predicción (no solo startsWith)
+* [ ] Soporte para argumentos (ej: `PS aux`)
 
-Abrir terminal en:
+---
 
-moltbot_server
+### 3. 📜 Historial avanzado
 
-ejecutar:
+* [ ] Guardar argumentos también (no solo comando)
+* [ ] Mostrar fecha/hora último uso
+* [ ] Botón “ejecutar último comando”
+* [ ] Orden dinámico (frecuencia + reciente)
 
-cargo run
+---
 
-Debe mostrar:
+### 4. ⚙️ Backend – comandos nuevos
 
-HTTP server escuchando en http://0.0.0.0:8080
-3. Frontend (React Native)
+#### STATUS
 
-Abrir terminal en:
+* [ ] Endpoint `/status`
+* [ ] Devolver:
 
-reactNativeMoltbot
+  * uptime
+  * estado servicios
+  * versión
 
-ejecutar:
+#### HELP
 
-npx expo start
+* [ ] Endpoint `/help`
+* [ ] Responder según rol:
 
-Abrir:
+  * USER → comandos básicos
+  * ADMIN → todos los comandos
 
-http://localhost:8081
-2️⃣ Verificación rápida
+---
 
-Probar en el panel:
+### 5. 🔐 Manejo de sesión
 
-PING
-STATUS
-HELP
-WHOAMI
-PROCESOS
+* [ ] Mejorar expiración de token
+* [ ] Mensaje claro cuando expira
+* [ ] Auto-logout más elegante
 
-Confirmar:
+---
 
-terminal auto-scroll funciona
-historial guarda comandos
-repetir comando funciona
-backend aparece ONLINE
-STATUS muestra uptime real
-3️⃣ Próxima mejora del proyecto
-🧹 Botón "Limpiar terminal"
+## 🧪 FASE MEDIA (MEJORAS)
 
-Agregar botón en frontend para borrar salida.
+### 6. 🖥 Terminal UX PRO
 
-Objetivo
+* [ ] Cursor parpadeante
+* [ ] Scroll automático suave
+* [ ] Colores tipo consola real
+* [ ] Input estilo CLI (prompt fijo)
 
-Poder limpiar:
+---
 
-terminal output
+### 7. 📡 Estado en tiempo real
 
-sin recargar la página.
+* [ ] Reemplazar polling por WebSocket
+* [ ] Actualizar ONLINE/OFFLINE en vivo
+* [ ] Notificación si backend cae
 
-Implementación
+---
 
-En home.tsx
+### 8. 📱 UX móvil
 
-agregar botón:
+* [ ] Ajustar teclado (no tapar input)
+* [ ] Mejor spacing en pantallas chicas
+* [ ] Botones más grandes
 
-Limpiar terminal
+---
 
-que haga:
+## 🧩 IDEAS FUTURAS (OPCIONAL)
 
-setOut("")
-4️⃣ Mejora visual de la terminal
+* [ ] Modo oscuro real (tema completo)
+* [ ] Logs exportables
+* [ ] Multi-usuario
+* [ ] Comandos personalizados
+* [ ] Integración con PC (abrir apps reales)
 
-Pequeñas mejoras:
+---
 
-1️⃣ Color para errores
+## 🧠 REGLAS DE DESARROLLO (IMPORTANTES)
 
-Si comando falla:
+* Hacer commits pequeños ✅
+* Probar cada cambio antes de avanzar ✅
+* No romper hooks (orden SIEMPRE fijo) ⚠️
+* No duplicar estados ⚠️
 
-texto rojo
+---
 
-Si funciona:
+## 🎯 PRÓXIMO PASO INMEDIATO
 
-texto verde
-2️⃣ Header más claro
+👉 Empezar por:
+**1. Panel UI de comandos + estilo terminal**
 
-Mostrar:
-
-TERMINAL
-READY / RUNNING
-3️⃣ Ocultar JSON debug por defecto
-
-El JSON actual:
-
---- JSON ---
-
-solo mostrarlo si se activa un botón:
-
-Mostrar debug
-5️⃣ Backend mejora pequeña
-
-Agregar comando nuevo:
-
-UPTIME
-
-Respuesta:
-
-00:14:22
-
-Esto permite consultar uptime directo.
-
-6️⃣ Backend mejora importante (siguiente etapa)
-📜 Logs de comandos
-
-Guardar en archivo:
-
-timestamp
-ip
-role
-command
-argument
-resultado
-
-ejemplo log:
-
-2026-03-10 21:41 ADMIN STATUS OK
-2026-03-10 21:42 USER PING OK
-
-Esto permitirá luego crear comandos:
-
-LOGS
-LAST
-HISTORY
-7️⃣ Commit recomendado
-
-Cuando avances algo:
-
-git add .
-git commit -m "feat: add clear terminal button"
-git push origin master
-🚀 Mejora grande futura (no para ahora)
-
-Cuando el sistema esté más estable:
-
-Modo agente
-
-Permitir instrucciones tipo:
-
-revisa estado del backend
-abre vscode
-compila proyecto
-
-La IA las traducirá a comandos internos.
-
-🧠 Recordatorio importante
-
-Siempre ejecutar en este orden:
-
-1 cargo run
-2 npx expo start
-3 abrir localhost:8081
-Estado real del proyecto ahora
-
-Tu Moltbot ya tiene:
-
-backend estable
-terminal visual
-control de comandos
-historial inteligente
-autenticación
-roles
-uptime real
-
-Ya es una base sólida de agente operativo remoto.
-
-Cuando vuelvas de Blender, si quieres, también puedo ayudarte a implementar la siguiente mejora potente para Moltbot:
-
-⚡ comandos encadenados (macros)
-
-ejemplo:
-
-WORK
-
-que ejecute:
-
-VSCODE
-STATUS
-PROCESOS
-
-Eso lo vuelve muchísimo más útil.
+---
