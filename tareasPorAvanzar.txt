@@ -1,126 +1,174 @@
-# 🧠 MOLTBOT – ROADMAP SIGUIENTE
+🧠 ROADMAP – MOLTBOT / CLAWDBOT
+🔹 FASE ACTUAL (donde estás ahora)
 
-## ✅ ESTADO ACTUAL
+✔ Backend con comandos
+✔ STATUS real con métricas
+✔ Terminal UI funcionando
+✔ Hook useCommandHandler listo
 
-* App funcionando al 100%
-* Error de hooks corregido (base / online)
-* Conexión backend OK
-* Historial inteligente operativo
-* Autocomplete básico funcionando
+👉 Estás en una base sólida. Ahora toca escalar.
 
----
+🚀 SIGUIENTE BLOQUE (PRIORIDAD ALTA)
+1. 🧩 Panel UI de comandos (Frontend)
 
-## 🚀 SIGUIENTE FASE (PRIORIDAD ALTA)
+Objetivo: No depender solo de escribir texto
 
-### 1. 🎛 Panel UI de comandos (MEJORAR)
+Qué hacer:
+Crear botones rápidos:
+STATUS
+SYSINFO
+PROCESOS
+Input con historial navegable (↑ ↓)
+Autocomplete básico
+Resultado:
 
-* [ ] Separar visualmente:
+👉 UX mucho más pro (tipo terminal real)
 
-  * Input
-  * Sugerencias
-  * Historial
-* [ ] Agregar iconos por comando (PING, STATUS, etc.)
-* [ ] Animaciones suaves al ejecutar comando
-* [ ] Mejorar estilo tipo “terminal real”
+2. 🔐 Filtrar comandos por rol (Frontend + Backend)
 
----
+Objetivo: que USER no vea comandos ADMIN
 
-### 2. 🧠 Autocomplete inteligente por rol
+Backend (ya casi lo tienes):
+Mantener validación con Rol::Admin
+Frontend:
+Ocultar:
+NOTA
+VSCODE
+CHROME
+PS
 
-* [ ] Filtrar comandos según rol (USER / ADMIN)
-* [ ] Evitar mostrar comandos no permitidos
-* [ ] Mejorar predicción (no solo startsWith)
-* [ ] Soporte para argumentos (ej: `PS aux`)
+👉 según data.role
 
----
+3. 📜 Historial mejorado
 
-### 3. 📜 Historial avanzado
+Objetivo: que parezca terminal real de verdad
 
-* [ ] Guardar argumentos también (no solo comando)
-* [ ] Mostrar fecha/hora último uso
-* [ ] Botón “ejecutar último comando”
-* [ ] Orden dinámico (frecuencia + reciente)
+Agregar:
+Guardar historial en estado
+Navegación con teclado (↑ ↓)
+Persistencia opcional (localStorage)
+4. 🧠 Comando HELP inteligente
 
----
+Ahora es estático.
 
-### 4. ⚙️ Backend – comandos nuevos
+Mejorarlo:
+Mostrar según rol:
+USER → comandos básicos
+ADMIN → todos
+Formato bonito:
+AVAILABLE COMMANDS
 
-#### STATUS
+[USER]
+- STATUS
+- SYSINFO
 
-* [ ] Endpoint `/status`
-* [ ] Devolver:
+[ADMIN]
+- NOTA
+- VSCODE
+5. ⚙️ Mejorar STATUS (pro nivel)
 
-  * uptime
-  * estado servicios
-  * versión
+Ya está bueno, pero puedes subirlo:
 
-#### HELP
+Backend:
 
-* [ ] Endpoint `/help`
-* [ ] Responder según rol:
+Agregar:
 
-  * USER → comandos básicos
-  * ADMIN → todos los comandos
+número de procesos
+load average
+hostname
+Frontend:
+barras visuales:
+CPU ███░░░
+RAM █████░
+🔥 SIGUIENTE NIVEL (MEDIO)
+6. 🌐 WebSocket (tiempo real)
 
----
+Problema actual: cada comando = request HTTP
 
-### 5. 🔐 Manejo de sesión
+Solución:
+Migrar a WebSockets con axum
+Mantener conexión persistente
 
-* [ ] Mejorar expiración de token
-* [ ] Mensaje claro cuando expira
-* [ ] Auto-logout más elegante
+👉 Esto te abre:
 
----
+streaming de logs
+eventos en vivo
+7. 📡 Comando LOGS
 
-## 🧪 FASE MEDIA (MEJORAS)
+Mostrar logs del servidor en vivo
 
-### 6. 🖥 Terminal UX PRO
+Ejemplo:
 
-* [ ] Cursor parpadeante
-* [ ] Scroll automático suave
-* [ ] Colores tipo consola real
-* [ ] Input estilo CLI (prompt fijo)
+LOGS
+> user login
+> command STATUS
+> error token invalid
+8. 📊 Dashboard paralelo
 
----
+Modo gráfico además del terminal:
 
-### 7. 📡 Estado en tiempo real
+CPU en gráfico
+RAM en tiempo real
+uptime
+📱 REACT NATIVE (tu app Android)
+9. Terminal móvil optimizada
+Scroll automático
+Input fijo abajo
+Mejor spacing
+10. Botones rápidos (igual que web)
+STATUS
+SYSINFO
+HELP
+🧪 FASE AVANZADA (PROYECTO SERIO)
+11. 🔑 Sistema de usuarios real
+login/password
+JWT
+roles dinámicos
+12. 🧠 Plugins de comandos
 
-* [ ] Reemplazar polling por WebSocket
-* [ ] Actualizar ONLINE/OFFLINE en vivo
-* [ ] Notificación si backend cae
+Arquitectura tipo:
 
----
+/commands
+  status.rs
+  sysinfo.rs
+  procesos.rs
 
-### 8. 📱 UX móvil
+👉 más mantenible
 
-* [ ] Ajustar teclado (no tapar input)
-* [ ] Mejor spacing en pantallas chicas
-* [ ] Botones más grandes
+13. ☁️ Deploy real
+VPS o Railway
+HTTPS
+dominio
+🧩 ORDEN RECOMENDADO (IMPORTANTE)
 
----
+Sigue este orden exacto:
 
-## 🧩 IDEAS FUTURAS (OPCIONAL)
+Panel UI comandos
+Filtro por rol
+Historial terminal
+HELP dinámico
+Mejoras STATUS
+React Native UI
+WebSockets
+Logs en vivo
+Dashboard
+Auth real
+🎯 SIGUIENTE COMMIT RECOMENDADO
 
-* [ ] Modo oscuro real (tema completo)
-* [ ] Logs exportables
-* [ ] Multi-usuario
-* [ ] Comandos personalizados
-* [ ] Integración con PC (abrir apps reales)
+👉 "feat(ui): command quick panel + history navigation"
 
----
+💡 CONSEJO CLAVE
 
-## 🧠 REGLAS DE DESARROLLO (IMPORTANTES)
+No intentes hacer todo junto.
 
-* Hacer commits pequeños ✅
-* Probar cada cambio antes de avanzar ✅
-* No romper hooks (orden SIEMPRE fijo) ⚠️
-* No duplicar estados ⚠️
+Tu estilo actual (bien hecho):
+✔ cambios pequeños
+✔ pruebas inmediatas
+✔ commits claros
 
----
+👉 sigue así → es exactamente como trabajan equipos reales.
 
-## 🎯 PRÓXIMO PASO INMEDIATO
+Si quieres, en la próxima sesión te hago:
 
-👉 Empezar por:
-**1. Panel UI de comandos + estilo terminal**
-
----
+👉 
+el panel de botones + historial tipo terminal real (copy/paste listo)

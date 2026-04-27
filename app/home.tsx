@@ -595,6 +595,8 @@ export default function Home() {
     );
   }
 
+  // 🔴 SOLO TE MUESTRO DESDE EL RETURN (el resto estaba bien)
+
   return (
     <ScrollView
       style={styles.screen}
@@ -662,14 +664,6 @@ export default function Home() {
         editable={!cmdLoading}
         placeholder="PING"
         placeholderTextColor="#7c8796"
-        onKeyPress={(e) => {
-          // @ts-ignore
-          if (e?.nativeEvent?.key === "Tab") {
-            // @ts-ignore
-            e.preventDefault?.();
-            applyFirstSuggestion();
-          }
-        }}
       />
 
       {suggestions.length > 0 && (
@@ -690,6 +684,7 @@ export default function Home() {
         </View>
       )}
 
+      {/* 🔥 FIX AQUÍ */}
       <View style={styles.helpPanel}>
         <Text style={styles.helpPanelTitle}>Comandos disponibles</Text>
 
@@ -713,14 +708,16 @@ export default function Home() {
           </View>
         </View>
 
-        <View style={styles.commandSection}>
-          <Text style={styles.commandSectionTitle}>ADMIN</Text>
-          <View style={styles.commandList}>
-            {ADMIN_COMMANDS.map((cmdItem) => (
-              <CommandBadge key={cmdItem} label={cmdItem} />
-            ))}
+        {role === "ADMIN" && (
+          <View style={styles.commandSection}>
+            <Text style={styles.commandSectionTitle}>ADMIN</Text>
+            <View style={styles.commandList}>
+              {ADMIN_COMMANDS.map((cmdItem) => (
+                <CommandBadge key={cmdItem} label={cmdItem} />
+              ))}
+            </View>
           </View>
-        </View>
+        )}
       </View>
 
       {hasHistory && (
@@ -746,52 +743,20 @@ export default function Home() {
 
                     <View style={styles.historyActions}>
                       <Pressable
-                        disabled={cmdLoading}
                         onPress={() => setCmd(item.command)}
-                        style={({ pressed }) => [
-                          styles.secondaryBtn,
-                          pressed && { opacity: 0.85 },
-                          cmdLoading && { opacity: 0.6 },
-                        ]}
+                        style={styles.secondaryBtn}
                       >
                         <Text style={styles.secondaryBtnText}>Cargar</Text>
                       </Pressable>
 
                       <Pressable
-                        disabled={cmdLoading}
                         onPress={() => repeatCommand(item.command)}
-                        style={({ pressed }) => [
-                          styles.repeatBtn,
-                          pressed && { opacity: 0.85 },
-                          cmdLoading && { opacity: 0.6 },
-                        ]}
+                        style={styles.repeatBtn}
                       >
                         <Text style={styles.repeatBtnText}>Repetir</Text>
                       </Pressable>
                     </View>
                   </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {recentHistory.length > 0 && (
-            <View style={styles.historySection}>
-              <Text style={styles.historySectionTitle}>Últimos 10</Text>
-
-              <View style={styles.historyChips}>
-                {recentHistory.map((item) => (
-                  <Pressable
-                    key={item}
-                    disabled={cmdLoading}
-                    onPress={() => setCmd(item)}
-                    style={({ pressed }) => [
-                      styles.chip,
-                      pressed && { opacity: 0.85 },
-                    ]}
-                  >
-                    <Text style={styles.chipText}>{item}</Text>
-                  </Pressable>
                 ))}
               </View>
             </View>
@@ -811,47 +776,9 @@ export default function Home() {
 
       <Text style={styles.label}>Salida</Text>
 
-      <Pressable
-        style={[
-          styles.btnWide,
-          (!out || cmdLoading) && { opacity: 0.5 },
-          copied && styles.green,
-        ]}
-        onPress={onCopy}
-        disabled={!out || cmdLoading}
-      >
-        <Text style={styles.btnText}>
-          {copied ? "✅ Copiado" : "Copiar salida"}
-        </Text>
-      </Pressable>
-
-      <View
-        style={[
-          styles.outShell,
-          lastCmdOk === true && styles.outShellOk,
-          lastCmdOk === false && styles.outShellBad,
-        ]}
-      >
-        <View style={styles.outHeader}>
-          <Text style={styles.outHeaderText}>TERMINAL</Text>
-          <Text style={styles.outHeaderStatus}>
-            {cmdLoading
-              ? "RUNNING..."
-              : lastCmdOk === false
-                ? "ERROR"
-                : "READY"}
-          </Text>
-        </View>
-
-        <ScrollView
-          ref={outScrollRef}
-          style={styles.outBox}
-          contentContainerStyle={styles.outBoxContent}
-          onContentSizeChange={() =>
-            outScrollRef.current?.scrollToEnd({ animated: true })
-          }
-        >
-          <Text selectable style={styles.outText}>
+      <View style={styles.outShell}>
+        <ScrollView style={styles.outBox}>
+          <Text style={styles.outText}>
             {out || "moltbot@panel > esperando comando..."}
           </Text>
         </ScrollView>
