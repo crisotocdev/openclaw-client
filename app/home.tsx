@@ -231,10 +231,20 @@ export default function Home() {
     const q = normalizeCmd(cmd).toUpperCase();
     if (!q) return [];
     if (q.includes(" ")) return [];
-    return allowedSuggestions
-      .filter((c) => c.startsWith(q) && c !== q)
-      .slice(0, 6);
-  }, [cmd, allowedSuggestions]);
+
+    // 🔥 1. sugerencias desde historial (ordenadas por uso)
+    const historyMatches = sortHistoryStats(historyStats)
+      .map((h) => h.command)
+      .filter((c) => c.startsWith(q));
+
+    // 🔥 2. sugerencias base (USER + ADMIN)
+    const baseMatches = allowedSuggestions.filter((c) => c.startsWith(q));
+
+    // 🔥 3. combinar sin duplicados
+    const combined = dedupeKeepOrder([...historyMatches, ...baseMatches]);
+
+    return combined.slice(0, 6);
+  }, [cmd, allowedSuggestions, historyStats]);
 
   const topHistory = useMemo(() => {
     return sortHistoryStats(historyStats).slice(0, HISTORY_MAX);
@@ -638,10 +648,12 @@ export default function Home() {
       <View style={styles.row}>
         <Pressable
           style={[styles.btn, (!canUse || cmdLoading) && { opacity: 0.5 }]}
-          onPress={whoami}
+          onPress={sendCmd}
           disabled={!canUse || cmdLoading}
         >
-          <Text style={styles.btnText}>{cmdLoading ? "..." : "Whoami"}</Text>
+          <Text style={styles.btnText}>
+            {cmdLoading ? "..." : cmd || "Enviar"}
+          </Text>
         </Pressable>
 
         <Pressable
@@ -678,7 +690,12 @@ export default function Home() {
                 pressed && { opacity: 0.85 },
               ]}
             >
-              <Text style={styles.chipText}>{s}</Text>
+              <Text style={styles.chipText}>
+                {s}
+                {historyStats.find((h) => h.command === s)
+                  ? ` (${historyStats.find((h) => h.command === s)?.count})`
+                  : ""}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -695,12 +712,8 @@ export default function Home() {
               <CommandBadge
                 key={cmdItem}
                 label={cmdItem}
-                onPress={async (cmd) => {
-                  const data = await executeCommand(cmd);
-                  if (data) {
-                    await pushHistory(data.command || cmd);
-                    checkBackend("after_cmd");
-                  }
+                onPress={(cmd) => {
+                  setCmd(cmd === "PS" ? "PS " : cmd);
                 }}
                 disabled={cmdLoading}
               />
@@ -713,7 +726,11 @@ export default function Home() {
             <Text style={styles.commandSectionTitle}>ADMIN</Text>
             <View style={styles.commandList}>
               {ADMIN_COMMANDS.map((cmdItem) => (
-                <CommandBadge key={cmdItem} label={cmdItem} />
+                <CommandBadge
+                  key={cmdItem}
+                  label={cmdItem}
+                  onPress={(c) => setCmd(c === "PS" ? "PS " : c)}
+                />
               ))}
             </View>
           </View>
