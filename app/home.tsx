@@ -232,13 +232,28 @@ export default function Home() {
     if (!q) return [];
     if (q.includes(" ")) return [];
 
-    // 🔥 1. sugerencias desde historial (ordenadas por uso)
+    // 🔥 función de coincidencia inteligente
+    const fuzzyMatch = (text: string, query: string) => {
+      let ti = 0;
+      let qi = 0;
+
+      while (ti < text.length && qi < query.length) {
+        if (text[ti] === query[qi]) {
+          qi++;
+        }
+        ti++;
+      }
+
+      return qi === query.length;
+    };
+
+    // 🔥 1. historial (prioridad alta)
     const historyMatches = sortHistoryStats(historyStats)
       .map((h) => h.command)
-      .filter((c) => c.startsWith(q));
+      .filter((c) => fuzzyMatch(c, q));
 
-    // 🔥 2. sugerencias base (USER + ADMIN)
-    const baseMatches = allowedSuggestions.filter((c) => c.startsWith(q));
+    // 🔥 2. comandos base
+    const baseMatches = allowedSuggestions.filter((c) => fuzzyMatch(c, q));
 
     // 🔥 3. combinar sin duplicados
     const combined = dedupeKeepOrder([...historyMatches, ...baseMatches]);
@@ -669,7 +684,18 @@ export default function Home() {
       <TextInput
         style={styles.input}
         value={cmd}
-        onChangeText={setCmd}
+        onChangeText={(text) => {
+          // 👇 SOLO actualiza lo que el usuario escribe
+          setCmd(text);
+        }}
+        onEndEditing={() => {
+          // 👇 autocomplete SOLO cuando termina de escribir
+          const upper = normalizeCmd(cmd).toUpperCase();
+
+          if (suggestions.length === 1 && upper !== suggestions[0]) {
+            setCmd(suggestions[0]);
+          }
+        }}
         autoCapitalize="characters"
         onSubmitEditing={onSubmitSmart}
         returnKeyType="send"
