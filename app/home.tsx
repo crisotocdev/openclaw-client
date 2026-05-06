@@ -189,6 +189,7 @@ export default function Home() {
   const [recentHistory, setRecentHistory] = useState<string[]>([]);
   const [role, setRole] = useState("");
   const [lastCmdOk, setLastCmdOk] = useState<null | boolean>(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
 
   // 🔹 MEMOS (ANTES DE USARLOS)
   const base = useMemo(() => apiBase.trim(), [apiBase]);
@@ -685,15 +686,33 @@ export default function Home() {
         style={styles.input}
         value={cmd}
         onChangeText={(text) => {
-          // 👇 SOLO actualiza lo que el usuario escribe
           setCmd(text);
         }}
         onEndEditing={() => {
-          // 👇 autocomplete SOLO cuando termina de escribir
           const upper = normalizeCmd(cmd).toUpperCase();
 
           if (suggestions.length === 1 && upper !== suggestions[0]) {
             setCmd(suggestions[0]);
+          }
+        }}
+        onKeyPress={({ nativeEvent }) => {
+          const key = nativeEvent.key;
+
+          if (key === "ArrowDown") {
+            setSelectedIndex((prev) =>
+              prev < suggestions.length - 1 ? prev + 1 : 0,
+            );
+          }
+
+          if (key === "ArrowUp") {
+            setSelectedIndex((prev) =>
+              prev > 0 ? prev - 1 : suggestions.length - 1,
+            );
+          }
+
+          if (key === "Enter" && selectedIndex >= 0) {
+            setCmd(suggestions[selectedIndex]);
+            setSelectedIndex(-1);
           }
         }}
         autoCapitalize="characters"
@@ -819,7 +838,13 @@ export default function Home() {
 
       <Text style={styles.label}>Salida</Text>
 
-      <View style={styles.outShell}>
+      <View
+        style={[
+          styles.outShell,
+          lastCmdOk === true && styles.outShellOk,
+          lastCmdOk === false && styles.outShellBad,
+        ]}
+      >
         <ScrollView style={styles.outBox}>
           <Text style={styles.outText}>
             {out || "moltbot@panel > esperando comando..."}
