@@ -199,7 +199,9 @@ export default function Home() {
   const { executeCommand, cmdLoading } = useCommandHandler({
     base,
     token: tok,
-    onResult: setOut,
+    onResult: (text) => {
+      appendOutput(text);
+    },
     onOk: setLastCmdOk,
     onError: async (e) => {
       const msg = String(e?.message ?? "Error");
@@ -518,31 +520,56 @@ export default function Home() {
   }, [authLoading, tok]);
 
   function renderCmdResult(data: CmdResponse) {
-    const prompt = `moltbot@${String(data.role || "user").toLowerCase()} > ${data.command}${
+    const time = new Date().toLocaleTimeString();
+
+    const prompt = `moltbot@${String(
+      data.role || "user",
+    ).toLowerCase()} > ${data.command}${
       data.argument ? " " + data.argument : ""
     }`;
 
     const statusLine = data.ok ? "[OK]" : "[ERROR]";
-    const body = data.response || "(sin respuesta)";
-    const debug = `\n\n--- JSON ---\n${JSON.stringify(data, null, 2)}`;
 
-    return `${prompt}\n${statusLine}\n\n${body}${debug}`;
+    const body = data.response || "(sin respuesta)";
+
+    return [
+      `[${time}]`,
+      prompt,
+      "",
+      statusLine,
+      "",
+      body,
+      "",
+      "--------------------------------",
+      "",
+    ].join("\n");
   }
 
   async function whoami() {
     await executeCommand("WHOAMI");
   }
 
+  function appendOutput(text: string) {
+    setOut((prev) => {
+      if (!prev) return text;
+
+      return `${prev}\n${text}`;
+    });
+  }
+
   async function sendCmd() {
     const message = cmd.trim();
+
     if (!message) {
       Alert.alert("Falta comando", "Escribe un comando (ej: PING).");
       return;
     }
+
     const data = await executeCommand(message);
 
     if (data) {
       await pushHistory(data.command || message);
+
       checkBackend("after_cmd");
     }
   }
