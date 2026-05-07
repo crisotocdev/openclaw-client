@@ -189,7 +189,7 @@ export default function Home() {
   const [recentHistory, setRecentHistory] = useState<string[]>([]);
   const [role, setRole] = useState("");
   const [lastCmdOk, setLastCmdOk] = useState<null | boolean>(null);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   // 🔹 MEMOS (ANTES DE USARLOS)
   const base = useMemo(() => apiBase.trim(), [apiBase]);
@@ -725,7 +725,7 @@ export default function Home() {
 
       {suggestions.length > 0 && (
         <View style={styles.suggestBox}>
-          {suggestions.map((s) => (
+          {suggestions.map((s, index) => (
             <Pressable
               key={s}
               disabled={cmdLoading}
@@ -733,9 +733,21 @@ export default function Home() {
               style={({ pressed }) => [
                 styles.chip,
                 pressed && { opacity: 0.85 },
+
+                index === selectedIndex && {
+                  backgroundColor: "#111827",
+                  borderColor: "#111827",
+                },
               ]}
             >
-              <Text style={styles.chipText}>
+              <Text
+                style={[
+                  styles.chipText,
+                  index === selectedIndex && {
+                    color: "#ffffff",
+                  },
+                ]}
+              >
                 {s}
                 {historyStats.find((h) => h.command === s)
                   ? ` (${historyStats.find((h) => h.command === s)?.count})`

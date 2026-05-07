@@ -1,53 +1,199 @@
-🚀 OPCIONES REALES PARA SEGUIR (elige una)
-1. 🔥 Autocomplete PRO (muy recomendado)
+MOLTBOT - ROADMAP EN COMMITS PEQUEÑOS
 
-Ya tienes base, pero podemos hacerlo nivel “terminal real”:
+=====================================
+FASE 1 - ESTABILIDAD
+====================
 
-Priorizar por uso + coincidencia parcial
-Soportar cosas como:
-PR → PROCESOS
-ST → STATUS
-Navegación con teclado (↑ ↓ ENTER)
+[ ] Commit 1
+fix: limpiar lógica del input y autocomplete
 
-👉 Esto hace que tu app se sienta MUY pro
+* eliminar pruebas fallidas de teclas
+* dejar Enter y Tab funcionando estable
+* limpiar handlers innecesarios
 
-2. 🧠 Panel de comandos inteligente (muy potente)
+[ ] Commit 2
+refactor: separar lógica de sugerencias
 
-Convertir los badges en algo más útil:
+* mover fuzzyMatch a helper
+* ordenar lógica autocomplete
+* mejorar legibilidad
 
-Mostrar:
-frecuencia (x5)
-última vez usado (“hace 2 min”)
-Orden dinámico (los más usados primero)
-3. ⚡ Ejecución directa (modo power user)
+[ ] Commit 3
+fix: mejorar validación de comandos
 
-Opcional pero brutal:
+* evitar comandos vacíos
+* validar espacios
+* validar comandos inválidos
 
-Click en comando → ejecuta directo
-Mantener presionado → solo llenar input
+=====================================
+FASE 2 - AUTOCOMPLETADO
+=======================
 
-👉 UX tipo herramientas profesionales
+[ ] Commit 4
+feat: agregar highlight visual a sugerencias
 
-4. 🖥️ Mejorar terminal (impacto visual fuerte)
+* resaltar sugerencia seleccionada
+* mejorar contraste visual
 
-Tu salida puede verse mucho mejor:
+[ ] Commit 5
+feat: mejorar selección con Tab y Enter
 
-Cursor parpadeante
-Animación tipo “escribiendo”
-Colores por estado:
-verde = OK
-rojo = ERROR
-5. 📊 Métricas internas (nivel pro backend mindset)
+* Tab autocompleta
+* Enter ejecuta inteligente
 
-Guardar:
+[ ] Commit 6
+feat: limitar sugerencias irrelevantes
 
-total comandos ejecutados
-tasa de error
-comando más usado global
-🎯 MI RECOMENDACIÓN
+* mejorar ranking
+* evitar duplicados extraños
 
-Sigue este orden (te va a dar mejor resultado):
+[ ] Commit 7
+feat: agregar ghost text experimental
 
-✅ Autocomplete PRO
-✅ Panel inteligente
-🔥 Terminal UI
+* preview inline
+* autocomplete visual
+
+=====================================
+FASE 3 - HISTORIAL
+==================
+
+[ ] Commit 8
+feat: mejorar historial reciente
+
+* ordenar mejor recientes
+* optimizar persistencia
+
+[ ] Commit 9
+feat: agregar historial tipo terminal
+
+* navegación historial
+* repetir último comando
+
+[ ] Commit 10
+feat: comando HISTORY
+
+* mostrar historial completo
+* separar recientes y más usados
+
+=====================================
+FASE 4 - UI
+===========
+
+[ ] Commit 11
+style: mejorar layout principal
+
+* separar paneles
+* mejorar espaciado
+
+[ ] Commit 12
+style: mejorar diseño de salida terminal
+
+* mejorar consola visual
+* mejorar colores
+
+[ ] Commit 13
+feat: agregar indicadores visuales
+
+* badges estado
+* animaciones suaves
+
+=====================================
+FASE 5 - BACKEND
+================
+
+[ ] Commit 14
+feat: implementar STATUS backend
+
+* uptime
+* estado servidor
+
+[ ] Commit 15
+feat: implementar HELP backend
+
+* ayuda dinámica
+* listar comandos
+
+[ ] Commit 16
+refactor: normalizar respuestas JSON
+
+* estructura consistente
+* manejo de errores
+
+=====================================
+FASE 6 - SEGURIDAD
+==================
+
+[ ] Commit 17
+feat: mejorar validación token
+
+* manejo expiración
+* logout automático
+
+[ ] Commit 18
+feat: mejorar control de roles
+
+* separar USER/ADMIN
+* validar permisos
+
+=====================================
+FASE 7 - FEATURES AVANZADAS
+===========================
+
+[ ] Commit 19
+feat: alias de comandos
+
+* comandos cortos
+* aliases rápidos
+
+[ ] Commit 20
+feat: repeat avanzado
+
+* repetir comandos rápidos
+* shortcuts
+
+[ ] Commit 21
+feat: autocompletado por argumentos
+
+* sugerencias dinámicas
+* contexto comandos
+
+=====================================
+FASE 8 - PRODUCCIÓN
+===================
+
+[ ] Commit 22
+chore: preparar entorno producción
+
+* variables entorno
+* config dev/prod
+
+[ ] Commit 23
+build: preparar APK y web
+
+* optimización build
+* pruebas finales
+
+=====================================
+OBJETIVO GENERAL
+================
+
+1. Mantener commits pequeños
+2. Poder revertir fácil
+3. Evitar bugs grandes
+4. Avanzar sin romper la app
+5. Priorizar estabilidad primero
+
+=====================================
+REGLA IMPORTANTE
+================
+
+NO avanzar a la siguiente tarea si:
+
+* hay errores TypeScript
+* hay warnings raros
+* algo funciona "a medias"
+
+Siempre:
+✔ probar
+✔ commit
+✔ continuar
