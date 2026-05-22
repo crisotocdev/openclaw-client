@@ -25,6 +25,13 @@ type VerifyResponse = {
   ok?: boolean;
   response?: string;
   role?: string;
+  // Nuevos campos para el STATUS real
+  status?: {
+    uptime: string;
+    load: string;
+    ping: number;
+    timestamp: number;
+  };
 };
 
 type HistoryStat = {
@@ -444,17 +451,12 @@ export default function Home() {
     const b = baseRef.current;
     const t = tokRef.current;
 
-    if (!b) {
+    if (!b || !t) {
       setOnline(null);
       return;
     }
 
     try {
-      if (!t) {
-        setOnline(null);
-        return;
-      }
-
       const url = joinUrl(b, "/auth/verify");
       const data = await postJson<VerifyResponse>(url, { token: t });
 
@@ -468,18 +470,18 @@ export default function Home() {
 
       if (ok) {
         setRole(String(data.role ?? "").toUpperCase());
-      }
 
-      if (!ok) {
+        // ✅ Si el servidor envía info de sistema, la actualizamos aquí
+        if (data.status) {
+          setSystemStatus(data.status);
+        }
+      } else {
         await signOut();
         router.replace("/login");
       }
     } catch (e: any) {
-      const msg = String(e?.message ?? "");
-      if (
-        msg.toLowerCase().includes("token") ||
-        msg.toLowerCase().includes("unauthorized")
-      ) {
+      const msg = String(e?.message ?? "").toLowerCase();
+      if (msg.includes("token") || msg.includes("unauthorized")) {
         setOnline(false);
         await signOut();
         router.replace("/login");
@@ -522,15 +524,28 @@ export default function Home() {
   function renderCmdResult(data: CmdResponse) {
     const time = new Date().toLocaleTimeString();
 
-    const prompt = `moltbot@${String(
-      data.role || "user",
-    ).toLowerCase()} > ${data.command}${
+    const prompt = `moltbot@${String(data.role || "user").toLowerCase()} > ${data.command}${
       data.argument ? " " + data.argument : ""
     }`;
 
     const statusLine = data.ok ? "[OK]" : "[ERROR]";
 
-    const body = data.response || "(sin respuesta)";
+    // 🔥 Lógica de formateo para el cuerpo (body)
+    let body = data.response || "(sin respuesta)";
+
+    if (data.command === "STATUS" && data.response) {
+      try {
+        const parsed = JSON.parse(data.response);
+        body = [
+          `System: ${parsed.status} (${parsed.os})`,
+          `Uptime: ${parsed.uptime}`,
+          `CPU: ${parsed.cpu.toFixed(1)}%`,
+          `RAM: ${parsed.ram_used.toFixed(1)}GB / ${parsed.ram_total.toFixed(1)}GB`,
+        ].join("\n");
+      } catch (e) {
+        // Si el JSON es inválido, mantenemos el string original de data.response
+      }
+    }
 
     return [
       `[${time}]`,
