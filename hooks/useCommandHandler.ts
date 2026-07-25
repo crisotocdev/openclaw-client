@@ -175,96 +175,83 @@ function renderCmdResult(data: CmdResponse) {
   ].join("\n");
 }
 
-export function useCommandHandler({
-  base,
-  token,
-  onResult,
-  onOk,
-  onError,
-}: UseCommandHandlerParams) {
-  const [cmdLoading, setCmdLoading] = useState(false);
-
-  /*
-   * El estado de React no cambia inmediatamente.
-   * Esta referencia impide dos solicitudes simultáneas reales.
-   */
-  const executingRef = useRef(false);
-
-  /*
-   * Conservamos siempre las funciones más recientes sin obligar a
-   * recrear executeCommand cada vez que Home se renderiza.
-   */
-  const callbacksRef = useRef({
+  export function useCommandHandler({
+    base,
+    token,
     onResult,
     onOk,
     onError,
-  });
+  }: UseCommandHandlerParams) {
+    const [cmdLoading, setCmdLoading] = useState(false);
 
-  callbacksRef.current = {
-    onResult,
-    onOk,
-    onError,
-  };
+    // Impide que se ejecuten dos comandos simultáneamente.
+    const executingRef = useRef(false);
 
-  const executeCommand = useCallback(
-    async (
-      message: string,
-      options: ExecuteCommandOptions = {},
-    ): Promise<CmdResponse | undefined> => {
-      const normalizedBase = base.trim();
-      const normalizedToken = token.trim();
-      const normalizedMessage = normalizeCmd(message);
+    // Mantiene actualizados los callbacks sin recrear executeCommand.
+    const callbacksRef = useRef({
+      onResult,
+      onOk,
+      onError,
+    });
 
-      if (
-        !normalizedBase ||
-        !normalizedToken ||
-        !normalizedMessage
-      ) {
-        return undefined;
-      }
+    callbacksRef.current = {
+      onResult,
+      onOk,
+      onError,
+    };
 
-      if (executingRef.current) {
-        return undefined;
-      }
+    const executeCommand = useCallback(
+      async (
+        message: string,
+        options: ExecuteCommandOptions = {},
+      ): Promise<CmdResponse | undefined> => {
+        const normalizedBase = base.trim();
+        const normalizedToken = token.trim();
+        const msgClean = normalizeCmd(message);
 
-      executingRef.current = true;
-      setCmdLoading(true);
-
-      try {
-        const url = joinUrl(normalizedBase, "/cmd");
-
-        const data = await postJson<CmdResponse>(url, {
-          token: normalizedToken,
-          message: normalizedMessage,
-        });
-
-        if (!options.silent) {
-          callbacksRef.current.onResult(
-            renderCmdResult(data),
-          );
-
-          callbacksRef.current.onOk(Boolean(data.ok));
+        if (!normalizedBase || !normalizedToken || !msgClean) {
+          return undefined;
         }
 
-        return data;
-      } catch (error: unknown) {
-        if (!options.silent) {
-          callbacksRef.current.onOk(false);
+        if (executingRef.current) {
+          return undefined;
         }
 
-        callbacksRef.current.onError?.(error);
+        executingRef.current = true;
+        setCmdLoading(true);
 
-        return undefined;
-      } finally {
-        executingRef.current = false;
-        setCmdLoading(false);
-      }
-    },
-    [base, token],
-  );
+        try {
+          const url = joinUrl(normalizedBase, "/cmd");
 
-  return {
-    executeCommand,
-    cmdLoading,
-  };
-}
+          const data = await postJson<CmdResponse>(url, {
+            token: normalizedToken,
+            message: msgClean,
+          });
+
+          if (!options.silent) {
+            callbacksRef.current.onResult(renderCmdResult(data));
+            callbacksRef.current.onOk(Boolean(data.ok));
+          }
+
+          return data;
+        } catch (error: unknown) {
+          if (!options.silent) {
+            callbacksRef.current.onOk(false);
+          }
+
+          callbacksRef.current.onError?.(error);
+
+          return undefined;
+        } finally {
+          executingRef.current = false;
+          setCmdLoading(false);
+        }
+      },
+      [base, token],
+    );
+
+    return {
+      executeCommand,
+      cmdLoading,
+    };
+  }
