@@ -1,6 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import {
   Alert,
   Pressable,
@@ -49,47 +55,15 @@ const API_KEY = "moltbot_api";
 const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
 const CHECK_INTERVAL_MS = 10000;
+// =========================
+// CONSTANTES
+// =========================
 
-const USER_COMMANDS = [
-  "PING",
-  "TIME",
-  "PROCESOS",
-  "WHOAMI",
-  "SYSINFO",
-  "STATUS",
-  "HELP",
-  "VERSION",
-];
+const USER_SUGGESTIONS = ["PING", "HELP", "WHOAMI", "STATUS", "PS"];
 
-const ADMIN_COMMANDS = ["NOTA", "VSCODE", "CHROME", "PS"];
+const ADMIN_EXTRA_SUGGESTIONS = ["RESTART", "SHUTDOWN", "KILL"];
 
-const USER_SUGGESTIONS = [
-  "PING",
-  "TIME",
-  "PROCESOS",
-  "WHOAMI",
-  "SYSINFO",
-  "STATUS",
-  "HELP",
-  "VERSION",
-];
-
-const ADMIN_EXTRA_SUGGESTIONS = ["NOTA", "VSCODE", "CHROME", "PS"];
-
-const VALID_COMMANDS = [
-  "PING",
-  "TIME",
-  "PROCESOS",
-  "WHOAMI",
-  "SYSINFO",
-  "STATUS",
-  "HELP",
-  "VERSION",
-  "NOTA",
-  "VSCODE",
-  "CHROME",
-  "PS",
-];
+const VALID_COMMANDS = [...USER_SUGGESTIONS, ...ADMIN_EXTRA_SUGGESTIONS];
 
 function CommandBadge({
   label,
@@ -186,7 +160,18 @@ async function postJson<T>(url: string, body: any): Promise<T> {
 export default function Home() {
   const { token, signOut, loading: authLoading } = useAuth();
 
-  // 🔹 STATES (UNA SOLA VEZ)
+  // =========================
+  // STATES
+  // =========================
+
+  const [availableCommands, setAvailableCommands] = useState<{
+    user: string[];
+    admin: string[];
+  }>({
+    user: [],
+    admin: [],
+  });
+
   const [apiBase, setApiBase] = useState("");
   const [cmd, setCmd] = useState("PING");
   const [out, setOut] = useState("");
@@ -197,12 +182,38 @@ export default function Home() {
   const [role, setRole] = useState("");
   const [lastCmdOk, setLastCmdOk] = useState<null | boolean>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [systemStatus, setSystemStatus] = useState<any>(null);
 
-  // 🔹 MEMOS (ANTES DE USARLOS)
+  // =========================
+  // MEMOS
+  // =========================
+
   const base = useMemo(() => apiBase.trim(), [apiBase]);
   const tok = useMemo(() => (token ?? "").trim(), [token]);
 
-  // 🔹 HOOK PERSONALIZADO (YA PUEDE USAR base y tok)
+  // =========================
+  // REFS
+  // =========================
+
+  const baseRef = useRef<string>("");
+  const tokRef = useRef<string>("");
+  const outScrollRef = useRef<ScrollView | null>(null);
+
+  // =========================
+  // HELPERS
+  // =========================
+
+  function appendOutput(text: string) {
+    setOut((prev) => {
+      if (!prev) return text;
+      return `${prev}\n${text}`;
+    });
+  }
+
+  // =========================
+  // COMMAND HANDLER
+  // =========================
+
   const { executeCommand, cmdLoading } = useCommandHandler({
     base,
     token: tok,
@@ -224,25 +235,49 @@ export default function Home() {
     },
   });
 
-  // 🔹 REFS
-  const baseRef = useRef<string>("");
-  const tokRef = useRef<string>("");
-  const outScrollRef = useRef<ScrollView | null>(null);
+  // =========================
+  // FETCH HELP
+  // =========================
+
+  const fetchHelp = useCallback(async () => {
+    const data = await executeCommand("HELP", {
+      silent: true,
+    });
+
+    if (!data?.ok) return;
+
+    try {
+      const parsed = JSON.parse(data.response);
+
+      setAvailableCommands(parsed);
+    } catch (error) {
+      console.error(
+        "Error procesando la respuesta de HELP:",
+        error,
+      );
+    }
+  }, [executeCommand]);
+
+  // =========================
+  // SUGERENCIAS
+  // =========================
 
   const allowedSuggestions = useMemo(() => {
     const baseList = [...USER_SUGGESTIONS];
+
     if (role.toUpperCase() === "ADMIN") {
       return [...baseList, ...ADMIN_EXTRA_SUGGESTIONS];
     }
+
     return baseList;
   }, [role]);
 
   const suggestions = useMemo(() => {
     const q = normalizeCmd(cmd).toUpperCase();
+
     if (!q) return [];
     if (q.includes(" ")) return [];
 
-    // 🔥 función de coincidencia inteligente
     const fuzzyMatch = (text: string, query: string) => {
       let ti = 0;
       let qi = 0;
@@ -251,21 +286,19 @@ export default function Home() {
         if (text[ti] === query[qi]) {
           qi++;
         }
+
         ti++;
       }
 
       return qi === query.length;
     };
 
-    // 🔥 1. historial (prioridad alta)
     const historyMatches = sortHistoryStats(historyStats)
       .map((h) => h.command)
       .filter((c) => fuzzyMatch(c, q));
 
-    // 🔥 2. comandos base
     const baseMatches = allowedSuggestions.filter((c) => fuzzyMatch(c, q));
 
-    // 🔥 3. combinar sin duplicados
     const combined = dedupeKeepOrder([...historyMatches, ...baseMatches]);
 
     return combined.slice(0, 6);
@@ -275,6 +308,20 @@ export default function Home() {
     return sortHistoryStats(historyStats).slice(0, HISTORY_MAX);
   }, [historyStats]);
 
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showCopiedToast() {
+    setCopied(true);
+
+    if (copiedTimer.current) {
+      clearTimeout(copiedTimer.current);
+    }
+
+    copiedTimer.current = setTimeout(() => {
+      setCopied(false);
+    }, 1200);
+  }
   useEffect(() => {
     baseRef.current = base;
   }, [base]);
@@ -290,15 +337,6 @@ export default function Home() {
     }, 30);
     return () => clearTimeout(id);
   }, [out]);
-
-  const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function showCopiedToast() {
-    setCopied(true);
-    if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    copiedTimer.current = setTimeout(() => setCopied(false), 1200);
-  }
 
   async function saveHistory(nextStats: HistoryStat[], nextRecent: string[]) {
     try {
@@ -508,6 +546,7 @@ export default function Home() {
       setApiBase(a);
       await loadHistory();
       await checkBackend("init");
+      await fetchHelp(); // 🔥 AQUÍ CARGAMOS LOS COMANDOS AL INICIAR
       setLoading(false);
 
       timer = setInterval(() => {
@@ -523,14 +562,9 @@ export default function Home() {
 
   function renderCmdResult(data: CmdResponse) {
     const time = new Date().toLocaleTimeString();
-
-    const prompt = `moltbot@${String(data.role || "user").toLowerCase()} > ${data.command}${
-      data.argument ? " " + data.argument : ""
-    }`;
-
+    const prompt = `moltbot@${String(data.role || "user").toLowerCase()} > ${data.command}${data.argument ? " " + data.argument : ""}`;
     const statusLine = data.ok ? "[OK]" : "[ERROR]";
 
-    // 🔥 Lógica de formateo para el cuerpo (body)
     let body = data.response || "(sin respuesta)";
 
     if (data.command === "STATUS" && data.response) {
@@ -542,9 +576,7 @@ export default function Home() {
           `CPU: ${parsed.cpu.toFixed(1)}%`,
           `RAM: ${parsed.ram_used.toFixed(1)}GB / ${parsed.ram_total.toFixed(1)}GB`,
         ].join("\n");
-      } catch (e) {
-        // Si el JSON es inválido, mantenemos el string original de data.response
-      }
+      } catch (e) {}
     }
 
     return [
@@ -564,14 +596,6 @@ export default function Home() {
     await executeCommand("WHOAMI");
   }
 
-  function appendOutput(text: string) {
-    setOut((prev) => {
-      if (!prev) return text;
-
-      return `${prev}\n${text}`;
-    });
-  }
-
   async function sendCmd() {
     const message = cmd.trim();
 
@@ -585,7 +609,7 @@ export default function Home() {
     if (data) {
       await pushHistory(data.command || message);
 
-      checkBackend("after_cmd");
+      await checkBackend("after_cmd");
     }
   }
 
@@ -613,7 +637,7 @@ export default function Home() {
 
     if (data) {
       await pushHistory(data.command || command);
-      checkBackend("after_cmd");
+      await checkBackend("after_cmd");
     }
   }
 
@@ -700,7 +724,9 @@ export default function Home() {
       </View>
 
       <Text style={styles.title}>Panel Moltbot</Text>
+
       <Text style={styles.small}>API: {base || "(no configurada)"}</Text>
+
       <Text style={styles.small}>Rol: {role || "(desconocido)"}</Text>
 
       <View style={styles.row}>
@@ -724,6 +750,7 @@ export default function Home() {
       </View>
 
       <Text style={styles.label}>Comando</Text>
+
       <TextInput
         style={styles.input}
         value={cmd}
@@ -785,6 +812,7 @@ export default function Home() {
               <Text
                 style={[
                   styles.chipText,
+
                   index === selectedIndex && {
                     color: "#ffffff",
                   },
@@ -800,20 +828,22 @@ export default function Home() {
         </View>
       )}
 
-      {/* 🔥 FIX AQUÍ */}
+      {/* ========================= */}
+      {/* HELP PANEL */}
+      {/* ========================= */}
+
       <View style={styles.helpPanel}>
         <Text style={styles.helpPanelTitle}>Comandos disponibles</Text>
 
         <View style={styles.commandSection}>
           <Text style={styles.commandSectionTitle}>USER</Text>
+
           <View style={styles.commandList}>
-            {USER_COMMANDS.map((cmdItem) => (
+            {availableCommands.user.map((cmdItem) => (
               <CommandBadge
                 key={cmdItem}
                 label={cmdItem}
-                onPress={(cmd) => {
-                  setCmd(cmd === "PS" ? "PS " : cmd);
-                }}
+                onPress={(c) => setCmd(c === "PS" ? "PS " : c)}
                 disabled={cmdLoading}
               />
             ))}
@@ -823,12 +853,14 @@ export default function Home() {
         {role === "ADMIN" && (
           <View style={styles.commandSection}>
             <Text style={styles.commandSectionTitle}>ADMIN</Text>
+
             <View style={styles.commandList}>
-              {ADMIN_COMMANDS.map((cmdItem) => (
+              {availableCommands.admin.map((cmdItem) => (
                 <CommandBadge
                   key={cmdItem}
                   label={cmdItem}
                   onPress={(c) => setCmd(c === "PS" ? "PS " : c)}
+                  disabled={cmdLoading}
                 />
               ))}
             </View>
@@ -836,10 +868,15 @@ export default function Home() {
         )}
       </View>
 
+      {/* ========================= */}
+      {/* HISTORY */}
+      {/* ========================= */}
+
       {hasHistory && (
         <View style={styles.historyBox}>
           <View style={styles.historyHeader}>
             <Text style={styles.historyTitle}>Historial inteligente</Text>
+
             <Pressable onPress={clearHistory} disabled={cmdLoading}>
               <Text style={styles.historyClear}>Limpiar</Text>
             </Pressable>
@@ -854,6 +891,7 @@ export default function Home() {
                   <View key={item.command} style={styles.historyRow}>
                     <View style={styles.historyInfo}>
                       <Text style={styles.historyCommand}>{item.command}</Text>
+
                       <Text style={styles.historyMeta}>Usos: {item.count}</Text>
                     </View>
 
@@ -881,7 +919,12 @@ export default function Home() {
       )}
 
       <Pressable
-        style={[styles.btnWide, (!canSend || cmdLoading) && { opacity: 0.5 }]}
+        style={[
+          styles.btnWide,
+          (!canSend || cmdLoading) && {
+            opacity: 0.5,
+          },
+        ]}
         onPress={sendCmd}
         disabled={!canSend || cmdLoading}
       >
@@ -899,7 +942,11 @@ export default function Home() {
           lastCmdOk === false && styles.outShellBad,
         ]}
       >
-        <ScrollView style={styles.outBox}>
+        <ScrollView
+          ref={outScrollRef}
+          style={styles.outBox}
+          contentContainerStyle={styles.outBoxContent}
+        >
           <Text style={styles.outText}>
             {out || "moltbot@panel > esperando comando..."}
           </Text>
@@ -908,7 +955,6 @@ export default function Home() {
     </ScrollView>
   );
 }
-
 const styles = StyleSheet.create({
   center: {
     flex: 1,

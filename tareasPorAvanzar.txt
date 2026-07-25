@@ -4,21 +4,21 @@ MOLTBOT - ROADMAP EN COMMITS PEQUEÑOS
 FASE 1 - ESTABILIDAD
 ====================
 
-[ ] Commit 1
+[x] Commit 1
 fix: limpiar lógica del input y autocomplete
 
 * eliminar pruebas fallidas de teclas
-* dejar Enter y Tab funcionando estable
+* dejar Enter funcionando estable
 * limpiar handlers innecesarios
 
-[ ] Commit 2
+[x] Commit 2
 refactor: separar lógica de sugerencias
 
-* mover fuzzyMatch a helper
-* ordenar lógica autocomplete
+* mejorar lógica fuzzy
+* ordenar autocomplete
 * mejorar legibilidad
 
-[ ] Commit 3
+[x] Commit 3
 fix: mejorar validación de comandos
 
 * evitar comandos vacíos
@@ -29,7 +29,7 @@ fix: mejorar validación de comandos
 FASE 2 - AUTOCOMPLETADO
 =======================
 
-[ ] Commit 4
+[x] Commit 4
 feat: agregar highlight visual a sugerencias
 
 * resaltar sugerencia seleccionada
@@ -40,12 +40,14 @@ feat: mejorar selección con Tab y Enter
 
 * Tab autocompleta
 * Enter ejecuta inteligente
+* evaluar soporte multiplataforma
 
-[ ] Commit 6
+[x] Commit 6
 feat: limitar sugerencias irrelevantes
 
 * mejorar ranking
 * evitar duplicados extraños
+* priorizar historial
 
 [ ] Commit 7
 feat: agregar ghost text experimental
@@ -57,23 +59,26 @@ feat: agregar ghost text experimental
 FASE 3 - HISTORIAL
 ==================
 
-[ ] Commit 8
+[x] Commit 8
 feat: mejorar historial reciente
 
 * ordenar mejor recientes
 * optimizar persistencia
+* guardar frecuencia de uso
 
-[ ] Commit 9
+[x] Commit 9
 feat: agregar historial tipo terminal
 
-* navegación historial
-* repetir último comando
+* acumulación de outputs
+* persistencia visual terminal
+* repetir comandos
 
 [ ] Commit 10
 feat: comando HISTORY
 
 * mostrar historial completo
 * separar recientes y más usados
+* búsqueda rápida
 
 =====================================
 FASE 4 - UI
@@ -84,56 +89,51 @@ style: mejorar layout principal
 
 * separar paneles
 * mejorar espaciado
+* optimizar mobile
 
 [ ] Commit 12
 style: mejorar diseño de salida terminal
 
-* mejorar consola visual
-* mejorar colores
+* header terminal
+* scroll automático estable
+* timestamp visual
 
 [ ] Commit 13
 feat: agregar indicadores visuales
 
 * badges estado
 * animaciones suaves
+* estados carga/error
 
 =====================================
 FASE 5 - BACKEND
 ================
 
-[ ] Commit 14
-feat: implementar STATUS backend
-
-* uptime
-* estado servidor
-
-[ ] Commit 15
-feat: implementar HELP backend
-
-* ayuda dinámica
-* listar comandos
 
 [ ] Commit 16
 refactor: normalizar respuestas JSON
 
 * estructura consistente
 * manejo de errores
+* timestamps backend
 
 =====================================
 FASE 6 - SEGURIDAD
 ==================
 
-[ ] Commit 17
+[x] Commit 17
 feat: mejorar validación token
 
-* manejo expiración
 * logout automático
+* verificación periódica
+* manejo token inválido
 
 [ ] Commit 18
 feat: mejorar control de roles
 
 * separar USER/ADMIN
 * validar permisos
+* ocultar comandos restringidos
 
 =====================================
 FASE 7 - FEATURES AVANZADAS
@@ -150,12 +150,14 @@ feat: repeat avanzado
 
 * repetir comandos rápidos
 * shortcuts
+* favoritos
 
 [ ] Commit 21
 feat: autocompletado por argumentos
 
 * sugerencias dinámicas
 * contexto comandos
+* argumentos inteligentes
 
 =====================================
 FASE 8 - PRODUCCIÓN
@@ -166,12 +168,39 @@ chore: preparar entorno producción
 
 * variables entorno
 * config dev/prod
+* cleanup logs debug
 
 [ ] Commit 23
 build: preparar APK y web
 
 * optimización build
 * pruebas finales
+* release estable
+
+=====================================
+NUEVAS PRIORIDADES
+==================
+
+🔥 PRIORIDAD ALTA
+
+1. STATUS backend real
+2. HELP backend real
+3. HISTORY command
+4. terminal visual mejorada
+5. logs persistentes
+
+⚡ PRIORIDAD MEDIA
+
+6. aliases
+7. ghost text
+8. repeat avanzado
+
+🧪 PRIORIDAD EXPERIMENTAL
+
+9. WebSocket realtime
+10. multi dispositivo
+11. live processes
+12. streaming outputs
 
 =====================================
 OBJETIVO GENERAL
@@ -182,6 +211,7 @@ OBJETIVO GENERAL
 3. Evitar bugs grandes
 4. Avanzar sin romper la app
 5. Priorizar estabilidad primero
+6. Tener una consola usable real
 
 =====================================
 REGLA IMPORTANTE
@@ -197,3 +227,5 @@ Siempre:
 ✔ probar
 ✔ commit
 ✔ continuar
+✔ mantener estable
+
