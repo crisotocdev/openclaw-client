@@ -15,14 +15,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        (async () => {
-            try {
-                const t = await getToken();
-                setTokenState(t ?? null);
-            } finally {
-                setLoading(false);
-            }
-        })();
+      (async () => {
+        try {
+          const t = await getToken();
+
+          console.log(
+            "TOKEN GUARDADO:",
+            t ? `${t.slice(0, 6)}...${t.slice(-4)}` : "(no existe)",
+          );
+
+          setTokenState(t ?? null);
+        } finally {
+          setLoading(false);
+        }
+      })();
     }, []);
 
     const value = useMemo<AuthContextValue>(
