@@ -183,6 +183,7 @@ export default function Home() {
   const [lastCmdOk, setLastCmdOk] = useState<null | boolean>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [systemStatus, setSystemStatus] = useState<any>(null);
+  const [initialized, setInitialized] = useState(false);
 
   // =========================
   // MEMOS
@@ -195,9 +196,10 @@ export default function Home() {
   // REFS
   // =========================
 
-  const baseRef = useRef<string>("");
-  const tokRef = useRef<string>("");
   const outScrollRef = useRef<ScrollView | null>(null);
+
+  const backendCheckPromiseRef = useRef<Promise<boolean> | null>(null);
+  const commandsLoadedRef = useRef(false);
 
   // =========================
   // HELPERS
@@ -217,14 +219,24 @@ export default function Home() {
   const { executeCommand, cmdLoading } = useCommandHandler({
     base,
     token: tok,
+
     onResult: (text) => {
       appendOutput(text);
     },
-    onOk: setLastCmdOk,
-    onError: async (e) => {
-      const msg = String(e?.message ?? "Error");
 
-      if (msg.toLowerCase().includes("token")) {
+    onOk: setLastCmdOk,
+
+    onError: async (error: unknown) => {
+      const msg =
+        error instanceof Error
+          ? error.message
+          : String(error ?? "Error");
+
+      if (
+        msg.toLowerCase().includes("token") ||
+        msg.toLowerCase().includes("unauthorized") ||
+        msg.toLowerCase().includes("no autorizado")
+      ) {
         await signOut();
         router.replace("/login");
         return;
@@ -239,22 +251,35 @@ export default function Home() {
   // FETCH HELP
   // =========================
 
-  const fetchHelp = useCallback(async () => {
+  const fetchHelp = useCallback(async (): Promise<boolean> => {
     const data = await executeCommand("HELP", {
       silent: true,
     });
 
-    if (!data?.ok) return;
+    if (!data?.ok) return false;
 
     try {
       const parsed = JSON.parse(data.response);
 
-      setAvailableCommands(parsed);
+      if (
+        !parsed ||
+        !Array.isArray(parsed.user) ||
+        !Array.isArray(parsed.admin)
+      ) {
+        console.error("HELP devolvió un formato inválido.");
+        return false;
+      }
+
+      setAvailableCommands({
+        user: parsed.user,
+        admin: parsed.admin,
+      });
+
+      commandsLoadedRef.current = true;
+      return true;
     } catch (error) {
-      console.error(
-        "Error procesando la respuesta de HELP:",
-        error,
-      );
+      console.error("Error procesando la respuesta de HELP:", error);
+      return false;
     }
   }, [executeCommand]);
 
@@ -322,13 +347,6 @@ export default function Home() {
       setCopied(false);
     }, 1200);
   }
-  useEffect(() => {
-    baseRef.current = base;
-  }, [base]);
-
-  useEffect(() => {
-    tokRef.current = tok;
-  }, [tok]);
 
   useEffect(() => {
     if (!out) return;
@@ -338,17 +356,21 @@ export default function Home() {
     return () => clearTimeout(id);
   }, [out]);
 
-  async function saveHistory(nextStats: HistoryStat[], nextRecent: string[]) {
-    try {
-      const payload: StoredHistoryV2 = {
-        stats: nextStats,
-        recent: nextRecent,
-      };
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(payload));
-    } catch {}
-  }
+  const saveHistory = useCallback(
+    async (nextStats: HistoryStat[], nextRecent: string[]) => {
+      try {
+        const payload: StoredHistoryV2 = {
+          stats: nextStats,
+          recent: nextRecent,
+        };
 
-  async function loadHistory() {
+        await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(payload));
+      } catch {}
+    },
+    [],
+  );
+
+  const loadHistory = useCallback(async () => {
     try {
       const raw = await AsyncStorage.getItem(HISTORY_KEY);
       if (!raw) return;
@@ -430,7 +452,7 @@ export default function Home() {
         void saveHistory(finalStats, cleanedRecent);
       }
     } catch {}
-  }
+  }, [saveHistory]);
 
   async function pushHistory(entry: string) {
     const normalized = normalizeHistoryCommand(entry);
@@ -485,80 +507,178 @@ export default function Home() {
     } catch {}
   }
 
-  async function checkBackend(_reason: string) {
-    const b = baseRef.current;
-    const t = tokRef.current;
+  const checkBackend = useCallback(
+    (_reason: string): Promise<boolean> => {
+      if (!base || !tok) {
+        setOnline(null);
+        return Promise.resolve(false);
+      }
 
-    if (!b || !t) {
-      setOnline(null);
-      return;
-    }
+      // Si ya existe una verificación en curso, reutilizamos la misma.
+      if (backendCheckPromiseRef.current) {
+        return backendCheckPromiseRef.current;
+      }
 
-    try {
-      const url = joinUrl(b, "/auth/verify");
-      const data = await postJson<VerifyResponse>(url, { token: t });
+      const request = (async () => {
+        try {
+          const url = joinUrl(base, "/auth/verify");
 
-      const ok =
-        data &&
-        typeof data === "object" &&
-        (data.ok === true ||
-          String(data.response ?? "").toUpperCase() === "TOKEN_OK");
+          const data = await postJson<VerifyResponse>(url, {
+            token: tok,
+          });
 
-      setOnline(ok ? true : false);
+          const ok =
+            data &&
+            typeof data === "object" &&
+            (data.ok === true ||
+              String(data.response ?? "").toUpperCase() === "TOKEN_OK");
 
-      if (ok) {
-        setRole(String(data.role ?? "").toUpperCase());
+          if (!ok) {
+            setOnline(false);
+            await signOut();
+            router.replace("/login");
+            return false;
+          }
 
-        // ✅ Si el servidor envía info de sistema, la actualizamos aquí
-        if (data.status) {
-          setSystemStatus(data.status);
+          setOnline(true);
+          setRole(String(data.role ?? "").toUpperCase());
+
+          if (data.status) {
+            setSystemStatus(data.status);
+          }
+
+          if (!commandsLoadedRef.current) {
+            await fetchHelp();
+          }
+
+          return true;
+        } catch (error: any) {
+          const message = String(error?.message ?? "").toLowerCase();
+
+          setOnline(false);
+
+          if (
+            message.includes("token") ||
+            message.includes("unauthorized") ||
+            message.includes("no autorizado")
+          ) {
+            await signOut();
+            router.replace("/login");
+          }
+
+          return false;
+        } finally {
+          backendCheckPromiseRef.current = null;
         }
-      } else {
-        await signOut();
-        router.replace("/login");
-      }
-    } catch (e: any) {
-      const msg = String(e?.message ?? "").toLowerCase();
-      if (msg.includes("token") || msg.includes("unauthorized")) {
-        setOnline(false);
-        await signOut();
-        router.replace("/login");
-        return;
-      }
-      setOnline(false);
-    }
-  }
+      })();
+
+      backendCheckPromiseRef.current = request;
+
+      return request;
+    },
+    [base, tok, signOut, fetchHelp],
+  );
+
+  // =========================
+  // INICIALIZACIÓN LOCAL
+  // =========================
 
   useEffect(() => {
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
 
-    (async () => {
+    async function initializeLocalState() {
       if (authLoading) return;
 
-      const a = (await AsyncStorage.getItem(API_KEY))?.trim();
+      setLoading(true);
+      setInitialized(false);
+      commandsLoadedRef.current = false;
 
-      if (!a || !tok) {
+      setAvailableCommands({
+        user: [],
+        admin: [],
+      });
+
+      if (!tok) {
         setLoading(false);
         router.replace("/login");
         return;
       }
 
-      setApiBase(a);
-      await loadHistory();
+      try {
+        const storedApi =
+          (await AsyncStorage.getItem(API_KEY))?.trim() ?? "";
+
+        await loadHistory();
+
+        if (cancelled) return;
+
+        if (!storedApi) {
+          setLoading(false);
+          router.replace("/login");
+          return;
+        }
+
+        setApiBase(storedApi);
+        setInitialized(true);
+      } catch {
+        if (cancelled) return;
+
+        setLoading(false);
+        router.replace("/login");
+      }
+    }
+
+    void initializeLocalState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, tok, loadHistory]);
+
+  // =========================
+  // CONEXIÓN CON EL BACKEND
+  // =========================
+
+  useEffect(() => {
+    if (!initialized || !base || !tok) return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    async function initializeConnection() {
       await checkBackend("init");
-      await fetchHelp(); // 🔥 AQUÍ CARGAMOS LOS COMANDOS AL INICIAR
+
+      if (cancelled) return;
+
       setLoading(false);
 
       timer = setInterval(() => {
         void checkBackend("poll");
       }, CHECK_INTERVAL_MS);
-    })();
+    }
+
+    void initializeConnection();
 
     return () => {
-      if (timer) clearInterval(timer);
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      cancelled = true;
+
+      if (timer) {
+        clearInterval(timer);
+      }
     };
-  }, [authLoading, tok]);
+  }, [initialized, base, tok, checkBackend]);
+
+  // =========================
+  // LIMPIEZA DE TEMPORIZADORES
+  // =========================
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) {
+        clearTimeout(copiedTimer.current);
+      }
+    };
+  }, []);
 
   function renderCmdResult(data: CmdResponse) {
     const time = new Date().toLocaleTimeString();
