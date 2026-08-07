@@ -51,6 +51,11 @@ type StoredHistoryV2 = {
   recent: string[];
 };
 
+type CommandCatalog = {
+  user: string[];
+  admin: string[];
+};
+
 const API_KEY = "moltbot_api";
 const HISTORY_KEY = "moltbot_cmd_history";
 const HISTORY_MAX = 10;
@@ -59,11 +64,19 @@ const CHECK_INTERVAL_MS = 10000;
 // CONSTANTES
 // =========================
 
-const USER_SUGGESTIONS = ["PING", "HELP", "WHOAMI", "STATUS", "PS"];
-
-const ADMIN_EXTRA_SUGGESTIONS = ["RESTART", "SHUTDOWN", "KILL"];
-
-const VALID_COMMANDS = [...USER_SUGGESTIONS, ...ADMIN_EXTRA_SUGGESTIONS];
+const FALLBACK_COMMANDS: CommandCatalog = {
+  user: [
+    "PING",
+    "TIME",
+    "PROCESOS",
+    "WHOAMI",
+    "SYSINFO",
+    "STATUS",
+    "HELP",
+    "VERSION",
+  ],
+  admin: ["NOTA", "VSCODE", "CHROME", "PS"],
+};
 
 function CommandBadge({
   label,
@@ -113,13 +126,21 @@ function dedupeKeepOrder(items: string[]) {
   return out;
 }
 
+function normalizeCommandList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return dedupeKeepOrder(
+    value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => normalizeCmd(item).toUpperCase())
+      .filter((item) => item.length > 0),
+  );
+}
+
 function normalizeHistoryCommand(s: string) {
   return normalizeCmd(s).toUpperCase();
 }
 
-function isValidCommand(command: string) {
-  return VALID_COMMANDS.includes(command);
-}
 
 function sortHistoryStats(stats: HistoryStat[]) {
   return [...stats].sort((a, b) => {
@@ -164,13 +185,11 @@ export default function Home() {
   // STATES
   // =========================
 
-  const [availableCommands, setAvailableCommands] = useState<{
-    user: string[];
-    admin: string[];
-  }>({
-    user: [],
-    admin: [],
-  });
+  const [availableCommands, setAvailableCommands] =
+    useState<CommandCatalog>(() => ({
+      user: [...FALLBACK_COMMANDS.user],
+      admin: [...FALLBACK_COMMANDS.admin],
+    }));
 
   const [apiBase, setApiBase] = useState("");
   const [cmd, setCmd] = useState("PING");
@@ -200,6 +219,18 @@ export default function Home() {
 
   const backendCheckPromiseRef = useRef<Promise<boolean> | null>(null);
   const commandsLoadedRef = useRef(false);
+
+  const validCommandsRef = useRef<Set<string>>(
+    new Set([
+      ...FALLBACK_COMMANDS.user,
+      ...FALLBACK_COMMANDS.admin,
+    ]),
+  );
+
+  const isValidCommand = useCallback((command: string) => {
+    const normalized = normalizeHistoryCommand(command);
+    return validCommandsRef.current.has(normalized);
+  }, []);
 
   // =========================
   // HELPERS
@@ -259,20 +290,39 @@ export default function Home() {
     if (!data?.ok) return false;
 
     try {
-      const parsed = JSON.parse(data.response);
+      const parsed: unknown = JSON.parse(data.response);
 
-      if (
-        !parsed ||
-        !Array.isArray(parsed.user) ||
-        !Array.isArray(parsed.admin)
-      ) {
+      if (!parsed || typeof parsed !== "object") {
         console.error("HELP devolvió un formato inválido.");
         return false;
       }
 
+      const catalog = parsed as Record<string, unknown>;
+
+      if (
+        !Array.isArray(catalog.user) ||
+        !Array.isArray(catalog.admin)
+      ) {
+        console.error("HELP no contiene los catálogos USER y ADMIN.");
+        return false;
+      }
+
+      const user = normalizeCommandList(catalog.user);
+      const admin = normalizeCommandList(catalog.admin);
+
+      if (user.length === 0) {
+        console.error("HELP no devolvió comandos USER válidos.");
+        return false;
+      }
+
+      validCommandsRef.current = new Set([
+        ...user,
+        ...admin,
+      ]);
+
       setAvailableCommands({
-        user: parsed.user,
-        admin: parsed.admin,
+        user,
+        admin,
       });
 
       commandsLoadedRef.current = true;
@@ -288,14 +338,17 @@ export default function Home() {
   // =========================
 
   const allowedSuggestions = useMemo(() => {
-    const baseList = [...USER_SUGGESTIONS];
+    const userCommands = availableCommands.user;
 
     if (role.toUpperCase() === "ADMIN") {
-      return [...baseList, ...ADMIN_EXTRA_SUGGESTIONS];
+      return dedupeKeepOrder([
+        ...userCommands,
+        ...availableCommands.admin,
+      ]);
     }
 
-    return baseList;
-  }, [role]);
+    return [...userCommands];
+  }, [availableCommands, role]);
 
   const suggestions = useMemo(() => {
     const q = normalizeCmd(cmd).toUpperCase();
@@ -452,7 +505,7 @@ export default function Home() {
         void saveHistory(finalStats, cleanedRecent);
       }
     } catch {}
-  }, [saveHistory]);
+  }, [saveHistory, isValidCommand]);
 
   async function pushHistory(entry: string) {
     const normalized = normalizeHistoryCommand(entry);
@@ -593,9 +646,14 @@ export default function Home() {
       setInitialized(false);
       commandsLoadedRef.current = false;
 
+      validCommandsRef.current = new Set([
+        ...FALLBACK_COMMANDS.user,
+        ...FALLBACK_COMMANDS.admin,
+      ]);
+
       setAvailableCommands({
-        user: [],
-        admin: [],
+        user: [...FALLBACK_COMMANDS.user],
+        admin: [...FALLBACK_COMMANDS.admin],
       });
 
       if (!tok) {
